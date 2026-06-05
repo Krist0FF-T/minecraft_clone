@@ -15,7 +15,6 @@ raylib_dep = raylib_proj.dependency('raylib')
 
 executable(
   'game',
-  'main.cpp',
+  'src/main.cpp',
   dependencies: raylib_dep,
-  include_directories: include_directories('headers'),
 )

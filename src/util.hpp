@@ -16,12 +16,12 @@
 #define dSin(x) (sinf(x * PI / 180.0f))
 #endif
 
-std::vector<std::string> split_str(std::string str, char sc) {
+std::vector<std::string> split_str(std::string str, char delimiter) {
     std::vector<std::string> strVec = {};
     std::string nStr = "";
 
-    for (char c : str) {
-        if (c == sc) {
+    for (char ch : str) {
+        if (ch == delimiter) {
             if (nStr.size() == 0) {
                 continue;
             }
@@ -29,7 +29,7 @@ std::vector<std::string> split_str(std::string str, char sc) {
             strVec.push_back(nStr);
             nStr = "";
         } else {
-            nStr.push_back(c);
+            nStr.push_back(ch);
         }
     }
     strVec.push_back(nStr);

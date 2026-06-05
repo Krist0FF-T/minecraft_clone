@@ -185,14 +185,22 @@ void command_fill() {
     }
 }
 
+void update_block() {
+
+}
+
 void tick() {
     if (!flying) {
         vel_y -= 0.08f;
         vel_y *= 0.98f;
     }
 
-    // player chunk
-    int pc = player_cube.pos.y / CHUNK_SIZE, type;
+    if (falling_enabled) {
+        for (FallingBlock &fb : falling_blocks) {
+            fb.vel.y -= 0.08f;
+            fb.vel.y *= 0.98f;
+        }
+    }
 
     for (size_t j = 0; falling_enabled && j < falling_blocks.size(); j++) {
         FallingBlock &fb = falling_blocks[j];
@@ -205,12 +213,14 @@ void tick() {
         // fb.pos += fb.vel; -- done elsewhere
     }
 
-    for (int c = std::clamp(pc - 1, 0, CHUNK_COUNT - 1);
-         c < std::clamp(pc + 1, 0, CHUNK_COUNT - 1) + 1; c++) {
+    int player_chunk = player_cube.pos.y / CHUNK_SIZE;
+    for (int c = std::clamp(player_chunk - 1, 0, CHUNK_COUNT - 1);
+         c < std::clamp(player_chunk + 1, 0, CHUNK_COUNT - 1) + 1; c++) {
         for (int x = 0; x < CHUNK_SIZE; x++) {
             for (int y = 0; y < CHUNK_SIZE; y++) {
                 for (int z = 0; z < CHUNK_SIZE; z++) {
-                    type = blocks[c][x][y][z];
+                    int8_t type = blocks[c][x][y][z];
+
                     if (type == bt_air) {
                         continue;
                     }

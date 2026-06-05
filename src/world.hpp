@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <fstream>
 #include <vector>
 
@@ -19,7 +20,7 @@ static const bool flat = false;
 
 static Vector3 tp_point;
 
-static char blocks[CHUNK_COUNT][CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
+static int8_t blocks[CHUNK_COUNT][CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
 
 struct FallingBlock {
     Vector3 vel;
@@ -34,7 +35,7 @@ bool on_map(int x, int y, int z) {
             y < CHUNK_SIZE * CHUNK_COUNT && 0 <= z && z < CHUNK_SIZE);
 }
 
-bool on_map(Vector3 vec) {
+inline bool on_map(Vector3 vec) {
     return on_map((int)vec.x, (int)vec.y, (int)vec.z);
 }
 
@@ -53,7 +54,7 @@ int get_at(Vector3 vec) {
     return get_at((int)vec.x, (int)vec.y, (int)vec.z);
 }
 
-void set_at(int x, int y, int z, char type) {
+void set_at(int x, int y, int z, int8_t type) {
     if (on_map(x, y, z)) {
         blocks[chunk_of(y)][x][y % CHUNK_SIZE][z] = type;
     }
