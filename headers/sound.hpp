@@ -2,31 +2,21 @@
 
 #include <raylib.h>
 
-static const int soundC = 2;
-static Sound sounds[soundC];
-static Sound sound_break;
+static const int N_SOUNDS = 2;
+static Sound sounds[N_SOUNDS];
 
-static const char* soundNames[soundC] {
-    "place",
-    "break"
-};
+static const char *soundNames[N_SOUNDS]{"place", "break"};
 
-enum sid {
-    sid_place = 0,
-    sid_break
-};
+enum SOUND { SOUND_PLACE = 0, SOUND_BREAK };
 
-void initSounds() {
-
-    for(int i=0; i<soundC; i++) {
+void init_sounds() {
+    for (int i = 0; i < N_SOUNDS; i++) {
         sounds[i] = LoadSound(TextFormat("sound/%s.wav", soundNames[i]));
     }
-
 }
 
-void deInitSounds() {
-    for(int i=0; i<soundC; i++) {
+void deinit_sounds() {
+    for (int i = 0; i < N_SOUNDS; i++) {
         UnloadSound(sounds[i]);
     }
-    UnloadSound(sound_break);
 }

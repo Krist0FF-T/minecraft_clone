@@ -1,41 +1,19 @@
 #pragma once
 
-#include <raylib.h>
-
 #include <array>
 
-static const int blockTypeCount = 21;
-static const int texC = 23;
+#include <raylib.h>
 
-static const char*
-    tNames[texC] {
+static const int BLOCK_TYPE_COUNT = 21;
+static const int TEXTURE_COUNT = 23;
 
-        "grass_top",
-        "grass_side",
-        "dirt",
-        "sand",
-        "stone",
-        "brick",
-        "stone_brick",
-        "log_top",
-        "log_side",
-        "leaf",
-        "wool_red",
-        "wool_lime",
-        "wool_blue",
-        "wool_orange",
-        "wool_yellow",
-        "wool_lblue",
-        "wool_black",
-        "wool_gray",
-        "wool_white",
-        "cobblestone",
-        "slime",
-        "planks",
-        "bookshelf",
-        //"mira"
+static const char *TEXTURE_NAMES[TEXTURE_COUNT]{
+    "grass_top",  "grass_side",  "dirt",      "sand",        "stone",
+    "brick",      "stone_brick", "log_top",   "log_side",    "leaf",
+    "wool_red",   "wool_lime",   "wool_blue", "wool_orange", "wool_yellow",
+    "wool_lblue", "wool_black",  "wool_gray", "wool_white",  "cobblestone",
+    "slime",      "planks",      "bookshelf",
 };
-
 
 // texture names enum
 enum tne {
@@ -62,13 +40,9 @@ enum tne {
     tne_slime,
     tne_planks,
     tne_bookshelf,
-    //tne_mira
 };
 
-enum biome {
-    biome_forest = 0,
-    biome_desert
-};
+enum biome { biome_forest = 0, biome_desert };
 
 // block types
 enum bt {
@@ -94,150 +68,144 @@ enum bt {
     bt_slime,
     bt_planks,
     bt_bookshelf,
-    //bt_mira
 };
 
 struct BlockData {
-  const char* name;
-  std::array<int,3> sides;
-  bool flippable, falling, translucent;
+    const char *name;
+    std::array<int, 3> sides;
+    bool flippable, falling, translucent;
 };
 
-static const std::array<BlockData, blockTypeCount> blockData {
-  (BlockData){
-    "Grass",
-    {tne_grass_top, tne_grass_side, tne_dirt},
-    true, false, false
-  },
+// clang-format off
+static const std::array<BlockData, BLOCK_TYPE_COUNT> blockData {
+    (BlockData){
+        "Grass",
+        {tne_grass_top, tne_grass_side, tne_dirt},
+        true, false, false
+    },
 
-  (BlockData){
-    "Dirt",
-    {tne_dirt, tne_dirt, tne_dirt},
-    true, false, false
-  },
+    (BlockData){
+        "Dirt",
+        {tne_dirt, tne_dirt, tne_dirt},
+        true, false, false
+    },
 
-  (BlockData){
-    "Sand",
-    {tne_sand, tne_sand, tne_sand},
-    true, true, false
-  },
+    (BlockData){
+        "Sand",
+        {tne_sand, tne_sand, tne_sand},
+        true, true, false
+    },
 
-  (BlockData){
-    "Stone",
-    {tne_stone, tne_stone, tne_stone},
-    true, false, false
-  },
+    (BlockData){
+        "Stone",
+        {tne_stone, tne_stone, tne_stone},
+        true, false, false
+    },
 
-  (BlockData){
-    "Brick",
-    {tne_brick, tne_brick, tne_brick},
-    false, false, false
-  },
+    (BlockData){
+        "Brick",
+        {tne_brick, tne_brick, tne_brick},
+        false, false, false
+    },
 
-  (BlockData){
-    "Stone bricks",
-    {tne_stone_brick,tne_stone_brick,tne_stone_brick},
-    0,0,0
-  },
+    (BlockData){
+        "Stone bricks",
+        {tne_stone_brick,tne_stone_brick,tne_stone_brick},
+        0,0,0
+    },
 
-  (BlockData){
-    "Log",
-    {tne_log_top, tne_log_side, tne_log_top},
-    true, false, false
-  },
+    (BlockData){
+        "Log",
+        {tne_log_top, tne_log_side, tne_log_top},
+        true, false, false
+    },
 
-  (BlockData){
-    "Leaf",
-    {tne_leaf, tne_leaf, tne_leaf},
-    true, false, true
-  },
+    (BlockData){
+        "Leaf",
+        {tne_leaf, tne_leaf, tne_leaf},
+        true, false, true
+    },
 
-  // ++ Wools
+    // ++ Wools
 
-  (BlockData){
-    "Red wool",
-    {tne_wool_red, tne_wool_red, tne_wool_red},
-    false, false, false
-  },
+    (BlockData){
+        "Red wool",
+        {tne_wool_red, tne_wool_red, tne_wool_red},
+        false, false, false
+    },
 
-  (BlockData){
-    "Lime wool",
-    {tne_wool_lime, tne_wool_lime, tne_wool_lime},
-    false, false, false
-  },
+    (BlockData){
+        "Lime wool",
+        {tne_wool_lime, tne_wool_lime, tne_wool_lime},
+        false, false, false
+    },
 
-  (BlockData){
-    "Blue wool",
-    {tne_wool_blue, tne_wool_blue, tne_wool_blue},
-    false, false, false
-  },
+    (BlockData){
+        "Blue wool",
+        {tne_wool_blue, tne_wool_blue, tne_wool_blue},
+        false, false, false
+    },
 
-  (BlockData) {
-    "Orange wool",
-    {tne_wool_orange,tne_wool_orange,tne_wool_orange},
-    false,false,false
-  },
+    (BlockData) {
+        "Orange wool",
+        {tne_wool_orange,tne_wool_orange,tne_wool_orange},
+        false,false,false
+    },
 
-  (BlockData){
-    "Yellow wool",
-    {tne_wool_yellow, tne_wool_yellow, tne_wool_yellow},
-    false, false, false
-  },
+    (BlockData){
+        "Yellow wool",
+        {tne_wool_yellow, tne_wool_yellow, tne_wool_yellow},
+        false, false, false
+    },
 
-  (BlockData){
-    "Light blue wool",
-    {tne_wool_lblue, tne_wool_lblue, tne_wool_lblue},
-    false, false, false
-  },
+    (BlockData){
+        "Light blue wool",
+        {tne_wool_lblue, tne_wool_lblue, tne_wool_lblue},
+        false, false, false
+    },
 
-  (BlockData){
-    "Black wool",
-    {tne_wool_black, tne_wool_black, tne_wool_black},
-    false, false, false
-  },
+    (BlockData){
+        "Black wool",
+        {tne_wool_black, tne_wool_black, tne_wool_black},
+        false, false, false
+    },
 
-  (BlockData){
-    "Gray wool",
-    {tne_wool_gray, tne_wool_gray, tne_wool_gray},
-    false, false, false
-  },
+    (BlockData){
+        "Gray wool",
+        {tne_wool_gray, tne_wool_gray, tne_wool_gray},
+        false, false, false
+    },
 
-  (BlockData){
-    "White wool",
-    {tne_wool_white, tne_wool_white, tne_wool_white},
-    false, false, false
-  },
+    (BlockData){
+        "White wool",
+        {tne_wool_white, tne_wool_white, tne_wool_white},
+        false, false, false
+    },
 
-  // -- Wools
+    // -- Wools
 
-  (BlockData) {
-    "Cobblestone",
-    {tne_cobblestone,tne_cobblestone,tne_cobblestone},
-    false,false,false
-  },
+    (BlockData) {
+        "Cobblestone",
+        {tne_cobblestone,tne_cobblestone,tne_cobblestone},
+        false,false,false
+    },
 
-  (BlockData){
-    "Slime",
-    {tne_slime, tne_slime, tne_slime},
-    true, false, false
-  },
+    (BlockData){
+        "Slime",
+        {tne_slime, tne_slime, tne_slime},
+        true, false, false
+    },
 
-  (BlockData){
-    "Planks",
-    {tne_planks,tne_planks,tne_planks},
-    false,false,false
-  },
+    (BlockData){
+        "Planks",
+        {tne_planks,tne_planks,tne_planks},
+        false,false,false
+    },
 
-  (BlockData){
-    "Bookshelf",
-    {tne_planks,tne_bookshelf,tne_planks},
-    false,false,false
-  },
-  /*
-  (BlockData){
-    "Mira",
-    {tne_mira,tne_mira,tne_mira},
-    0,0,0
-  }*/
+    (BlockData){
+        "Bookshelf",
+        {tne_planks,tne_bookshelf,tne_planks},
+        false,false,false
+    },
 
 };

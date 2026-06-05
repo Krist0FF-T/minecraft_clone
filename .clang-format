@@ -1,0 +1,8 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+AlignOperands: false
+AllowAllArgumentsOnNextLine: true
+AllowShortFunctionsOnASingleLine: Empty
+IndentWidth: 4
+InsertBraces: true
