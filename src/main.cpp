@@ -417,7 +417,7 @@ void update() {
 
     const float rot_speed = IsKeyDown(KEY_LEFT_ALT) ? 8.0f : 1.25f;
 
-    // rotX += GetMouseDelta().x * 0.1f;
+    rot_x += GetMouseDelta().x * 0.2f;
     rot_x +=
         (IsKeyDown(KEY_L) - IsKeyDown(KEY_H)) * camera.fovy * rot_speed * dt;
     if (rot_x > 360) {
@@ -427,7 +427,7 @@ void update() {
         rot_x += 360;
     }
 
-    // rotY += (float) GetMouseDelta().y / 10.0f;
+    rot_y += GetMouseDelta().y * 0.2f;
     rot_y +=
         (IsKeyDown(KEY_J) - IsKeyDown(KEY_K)) * camera.fovy * rot_speed * dt;
     rot_y = std::clamp(rot_y, 0.1f, 179.9f);
@@ -521,11 +521,15 @@ void update() {
     //   fallingBlocks.push_back((FallingBlock){ vel, pos, bt_wool_red });
     // }
 
-    if (IsKeyDown(KEY_X) && on_map(looking_at) && !is_empty(looking_at)) {
+    if ((IsKeyDown(KEY_X) || IsMouseButtonDown(MOUSE_MIDDLE_BUTTON)) &&
+        on_map(looking_at) && !is_empty(looking_at)) {
         cur_type = get_at(looking_at);
     }
 
-    bool action_break = (fast_place ? IsKeyDown : IsKeyPressed)(KEY_U);
+    bool action_break = (
+        (fast_place ? IsKeyDown : IsKeyPressed)(KEY_U) ||
+        (fast_place ? IsMouseButtonDown : IsMouseButtonPressed)(MOUSE_LEFT_BUTTON)
+    );
     if (action_break &&
         !is_empty((int)looking_at.x, (int)looking_at.y, (int)looking_at.z) &&
         on_map(looking_at) && on_map(looking_at)) {
@@ -534,16 +538,18 @@ void update() {
         PlaySound(sounds[SOUND_BREAK]);
     }
 
-    bool action_place = (fast_place ? IsKeyDown : IsKeyPressed)(KEY_O);
-    if (action_place) {
-        if (on_map(placeAt) && is_empty(placeAt) &&
-            (flying || !player_cube.collide(blockCube(placeAt)))) {
+    bool action_place = (
+        (fast_place ? IsKeyDown : IsKeyPressed)(KEY_O) ||
+        (fast_place ? IsMouseButtonDown : IsMouseButtonPressed)(MOUSE_RIGHT_BUTTON)
+    );
+    if (action_place && (flying || !player_cube.collide(blockCube(placeAt)))) {
+        if (on_map(placeAt) && is_empty(placeAt)) {
             set_at(placeAt, cur_type);
             // fallingBlocks.push_back({0, {placeAt.x, placeAt.y+0.5f,
             // placeAt.z},
             set_at(placeAt, cur_type);
             PlaySound(sounds[SOUND_PLACE]);
-        } else {
+        } else if (looking_at.x == -1) {
             Vector3 vel{dSin(rot_y) * dCos(rot_x), dCos(rot_y),
                         dSin(rot_y) * dSin(rot_x)};
             Vector3 pos = player_cube.pos + player_cube.size / 2 + vel * 2;
@@ -1128,7 +1134,7 @@ void init() {
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     // SetWindowState(FLAG_VSYNC_HINT);
 
-    HideCursor();
+    DisableCursor();
 
     font = LoadFont(fontFName);
     initTextures("mc16x");
@@ -1259,9 +1265,7 @@ void pause() {
 }
 
 void blockSelectionMenu() {
-    if (IsCursorHidden()) {
-        ShowCursor();
-    }
+    EnableCursor();
 
     bool run = true;
 
@@ -1337,7 +1341,5 @@ void blockSelectionMenu() {
         }
     }
 
-    if (!IsCursorHidden()) {
-        HideCursor();
-    }
+    DisableCursor();
 }
