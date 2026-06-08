@@ -313,6 +313,8 @@ void update() {
     cur_type += GetMouseWheelMove();
     cur_type = std::min(std::max(cur_type, 0), BLOCK_TYPE_COUNT - 1);
 
+    const bool ctrl = IsKeyDown(KEY_LEFT_CONTROL);
+
     bool forward = IsKeyDown(KEY_W), back = IsKeyDown(KEY_S),
          right = IsKeyDown(KEY_D), left = IsKeyDown(KEY_A),
 
@@ -426,6 +428,7 @@ void update() {
     rot_x += GetMouseDelta().x * 0.2f;
     rot_x +=
         (IsKeyDown(KEY_L) - IsKeyDown(KEY_H)) * camera.fovy * rot_speed * dt;
+
     if (rot_x > 360) {
         rot_x -= 360;
     }
@@ -447,18 +450,9 @@ void update() {
         ToggleFullscreen();
     }
 
-    // SetMousePosition(CX, CY); -- doesn't really work on wayland...
-
     // zoom
     cur_fov = IsKeyDown(KEY_C) ? (DEF_FOV * 0.3f) : DEF_FOV;
     camera.fovy += dt * 20 * (cur_fov - camera.fovy);
-    // camera.fovy = curFov;
-
-    // if (IsKeyPressed(KEY_R)) {
-    //   camera.projection = 1 - camera.projection;
-    // }
-
-    // ---- :D
 
     Vector3 placeAdd{0, 0, 0};
     for (float cRad = 0; cRad < reach + REACH_STEP; cRad += REACH_STEP) {
@@ -516,17 +510,6 @@ void update() {
 
     Vector3 placeAt = Vector3Add(looking_at, placeAdd);
 
-    if (IsKeyPressed(KEY_V)) {
-    }
-
-    // if (IsKeyDown(KEY_B)) {
-    //   Vector3 vel {dSin(rot_y)*dCos(rot_x), dCos(rot_y),
-    //   dSin(rot_y)*dSin(rot_x)}; Vector3 pos = player_cube.pos +
-    //   player_cube.size/2 + vel*2; vel *= 2;
-    //
-    //   fallingBlocks.push_back((FallingBlock){ vel, pos, bt_wool_red });
-    // }
-
     if ((IsKeyDown(KEY_X) || IsMouseButtonDown(MOUSE_MIDDLE_BUTTON)) &&
         on_map(looking_at) && !is_empty(looking_at)) {
         cur_type = get_at(looking_at);
@@ -539,7 +522,6 @@ void update() {
     if (action_break &&
         !is_empty((int)looking_at.x, (int)looking_at.y, (int)looking_at.z) &&
         on_map(looking_at) && on_map(looking_at)) {
-        // set to air (delete)
         set_at(looking_at, bt_air);
         PlaySound(sounds[SOUND_BREAK]);
     }
@@ -595,11 +577,9 @@ void update() {
     }
 
     // toggle flying
-    if (IsKeyPressed(KEY_F)) {
+    if (!ctrl && IsKeyPressed(KEY_F)) {
         flying = !flying;
     }
-
-    const bool ctrl = IsKeyDown(KEY_LEFT_CONTROL);
 
     // save world
     if (ctrl && IsKeyPressed(KEY_S)) {
@@ -652,7 +632,7 @@ void update() {
         }
 
         else if (command == "replace") {
-            char t1, t2;
+            char t1 = 0, t2 = 0;
 
             try {
                 t1 = std::stoi(guiInputTxt("from"));
@@ -1156,12 +1136,7 @@ void init() {
     camera.fovy = DEF_FOV;
     camera.projection = CAMERA_PERSPECTIVE;
 
-    // ToggleFullscreen();
-
-    // NOTE: seems to cause segfault?
-    // genWorld();
-
-    // loadWorld("pagoda", pCube);
+    // load_world("pagoda", pCube);
     load_world("ch64", player_cube);
 }
 
@@ -1184,6 +1159,7 @@ void deInit() {
 
 int main() {
     init();
+
     while (!WindowShouldClose()) {
 
         dt = GetFrameTime();
@@ -1225,13 +1201,10 @@ std::string guiInputTxt(std::string displayText) {
         // input text
         while (key > 0) {
             // 25, 125
-            if ((key >= 25) && (key <= 125)) {
+            if (25 <= key && key <= 125) {
                 txt.push_back((char)key);
-
-                key = GetCharPressed();
-            } else {
-                key = GetCharPressed();
             }
+            key = GetCharPressed();
         }
 
         if (IsKeyPressed(KEY_BACKSPACE) && txt.length() > 0) {
