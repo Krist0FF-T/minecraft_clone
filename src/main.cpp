@@ -42,7 +42,8 @@ static float dt;
 static const float TICK_TIME = 0.05f;
 static float tick_timer = 0.0f;
 
-static int cur_type = 0, render_dist = 2;
+static BlockType cur_type = BlockType::Grass;
+static int render_dist = 2;
 
 static bool able_to_jump = false;
 static bool flying = false;
@@ -134,7 +135,7 @@ void place_player() {
 
 void command_fill() {
     int x1, y1, z1, x2, y2, z2;
-    char type;
+    BlockType type;
 
     try {
         std::vector<std::string> inputPos1 =
@@ -159,12 +160,13 @@ void command_fill() {
         y2 = std::stoi(inputPos2[1]);
         z2 = std::stoi(inputPos2[2]);
 
-        type = std::stoi(guiInputTxt("type"));
+        int type_idx = std::stoi(guiInputTxt("type"));
 
-        if (type < -1 || type > BLOCK_TYPE_COUNT - 1) {
+        if (type_idx < -1 || type_idx > BLOCK_TYPE_COUNT - 1) {
             notify("Type out of range.");
             return;
         }
+        type = (BlockType) type_idx;
     } catch (const std::invalid_argument &e) {
         notify(e.what());
         return;
@@ -220,24 +222,24 @@ void tick() {
         for (int x = 0; x < CHUNK_SIZE; x++) {
             for (int y = 0; y < CHUNK_SIZE; y++) {
                 for (int z = 0; z < CHUNK_SIZE; z++) {
-                    int8_t type = blocks[c][x][y][z];
+                    BlockType type = blocks[c][x][y][z];
 
-                    if (type == bt_air) {
+                    if (type == BlockType::Air) {
                         continue;
                     }
 
                     switch (type) {
 
-                    case bt_grass: {
-                        if (get_at(x, y + c * CHUNK_SIZE + 1, z) != bt_air) {
-                            blocks[c][x][y][z] = bt_dirt;
+                    case BlockType::Grass: {
+                        if (get_at(x, y + c * CHUNK_SIZE + 1, z) != BlockType::Air) {
+                            blocks[c][x][y][z] = BlockType::Dirt;
                         }
 
                         break;
                     }
 
-                    case bt_dirt: {
-                        if (bt_air != get_at(x, y + 1 + c * CHUNK_SIZE, z)) {
+                    case BlockType::Dirt: {
+                        if (BlockType::Air != get_at(x, y + 1 + c * CHUNK_SIZE, z)) {
                             break;
                         }
 
@@ -249,7 +251,7 @@ void tick() {
                                     if (0 != x2 + z2 &&
                                         on_map(x + x2, y + y2 + c * CHUNK_SIZE,
                                                z + z2) &&
-                                        bt_grass ==
+                                        BlockType::Grass ==
                                             get_at(x + x2,
                                                    y + y2 + c * CHUNK_SIZE,
                                                    z + z2)) {
@@ -260,14 +262,15 @@ void tick() {
                         }
 
                         if (grass_neighbors > 0 && rand() % 10 == 0) {
-                            set_at(x, y + c * CHUNK_SIZE, z, bt_grass);
+                            set_at(x, y + c * CHUNK_SIZE, z, BlockType::Grass);
                         }
 
                         break;
                     }
 
-                    case bt_sand: {
-                        if (get_at(x, y + c * CHUNK_SIZE - 1, z) == bt_air) {
+                    case BlockType::Sand: {
+                        if (get_at(x, y + c * CHUNK_SIZE - 1, z) == BlockType::Air
+                            ) {
 
                             falling_blocks.push_back((FallingBlock){
                                 {0.0f, 0.0f, 0.0f},
@@ -275,7 +278,7 @@ void tick() {
                                           (float)z},
                                 type});
 
-                            set_at(x, y + c * CHUNK_SIZE, z, bt_air);
+                            set_at(x, y + c * CHUNK_SIZE, z, BlockType::Air);
                         }
                         break;
                     }
@@ -305,8 +308,8 @@ void update() {
         notification_cooldown = 1.0f;
     }
 
-    cur_type += GetMouseWheelMove();
-    cur_type = std::min(std::max(cur_type, 0), BLOCK_TYPE_COUNT - 1);
+    cur_type = (BlockType) ((int)cur_type + GetMouseWheelMove());
+    cur_type = (BlockType)std::min(std::max((int)cur_type, 0), BLOCK_TYPE_COUNT - 1);
 
     const bool ctrl = IsKeyDown(KEY_LEFT_CONTROL);
 
@@ -338,11 +341,11 @@ void update() {
     for (size_t j = 0; falling_enabled && j < falling_blocks.size(); j++) {
         FallingBlock &fb = falling_blocks[j];
         Vector3 delta = fb.vel * dt * 20.0f;
-        if (get_at(fb.pos + delta) == bt_air) {
+        if (get_at(fb.pos + delta) == BlockType::Air) {
             fb.pos += delta;
         } else {
-            if (fb.type == bt_wool_red) {
-                set_at(fb.pos + delta, bt_air);
+            if (fb.type == BlockType::WoolRed) {
+                set_at(fb.pos + delta, BlockType::Air);
             } else {
                 set_at(fb.pos, fb.type);
             }
@@ -397,7 +400,7 @@ void update() {
 
                     if (player_cube.getTLF().y + PLAYER_HEIGHT > (float)y) {
                         able_to_jump = true;
-                        if (get_at(x, y, z) == bt_slime) {
+                        if (get_at(x, y, z) == BlockType::Slime) {
                             vel_y = 4;
                         }
                     }
@@ -511,7 +514,7 @@ void update() {
     if (action_break &&
         !is_empty((int)looking_at.x, (int)looking_at.y, (int)looking_at.z) &&
         on_map(looking_at) && on_map(looking_at)) {
-        set_at(looking_at, bt_air);
+        set_at(looking_at, BlockType::Air);
         PlaySound(sounds[SOUND_BREAK]);
     }
 
@@ -620,11 +623,11 @@ void update() {
         }
 
         else if (command == "replace") {
-            char t1 = 0, t2 = 0;
+            BlockType t1 = BlockType::Air, t2 = BlockType::Air;
 
             try {
-                t1 = std::stoi(guiInputTxt("from"));
-                t2 = std::stoi(guiInputTxt("to"));
+                t1 = (BlockType) std::stoi(guiInputTxt("from"));
+                t2 = (BlockType) std::stoi(guiInputTxt("to"));
             } catch (std::exception &e) {
                 printf("[ERROR] %s", e.what());
                 notify(TextFormat("[ERROR] %s", e.what()));
@@ -686,16 +689,15 @@ void update() {
         else if (command == "rand_replace") {
             std::string input = guiInputTxt("block to replace");
             try {
-                int rbid = std::stof(input);
+                BlockType type = (BlockType) std::stoi(input);
 
                 for (int c = 0; c < CHUNK_COUNT; c++) {
                     for (int y = 0; y < CHUNK_SIZE; y++) {
                         for (int x = 0; x < CHUNK_SIZE; x++) {
                             for (int z = 0; z < CHUNK_SIZE; z++) {
-
-                                if (blocks[c][x][y][z] == rbid) {
-                                    blocks[c][x][y][z] =
-                                        rand() % BLOCK_TYPE_COUNT;
+                                if (blocks[c][x][y][z] == type) {
+                                    int idx = rand() % BLOCK_TYPE_COUNT;
+                                    blocks[c][x][y][z] = (BlockType) idx;
                                 }
                             }
                         }
@@ -722,24 +724,24 @@ Faces getFaces(int x, int y, int z) {
     return {
         (cx < x &&
          (is_empty(x - 1, y, z) ||
-          (lt && blockData[get_at(x - 1, y, z)].translucent))),
+          (lt && blockData[(int)get_at(x - 1, y, z)].translucent))),
         (cx > x &&
          (is_empty(x + 1, y, z) ||
-          (lt && blockData[get_at(x + 1, y, z)].translucent))),
+          (lt && blockData[(int)get_at(x + 1, y, z)].translucent))),
         (cy < y &&
          (is_empty(x, y - 1, z) ||
-          (y > 0 && lt && blockData[get_at(x, y - 1, z)].translucent))),
+          (y > 0 && lt && blockData[(int)get_at(x, y - 1, z)].translucent))),
         (cy > y &&
          (is_empty(x, y + 1, z) ||
           (y < CHUNK_SIZE * CHUNK_COUNT && lt &&
-           blockData[get_at(x, y + 1, z)].translucent))),
+           blockData[(int)get_at(x, y + 1, z)].translucent))),
         (cz < z &&
          (is_empty(x, y, z - 1) ||
-          (z > 0 && lt && blockData[get_at(x, y, z - 1)].translucent))),
+          (z > 0 && lt && blockData[(int)get_at(x, y, z - 1)].translucent))),
         (cz > z &&
          (is_empty(x, y, z + 1) ||
           (z < CHUNK_SIZE && lt &&
-           blockData[get_at(x, y, z + 1)].translucent))),
+           blockData[(int)get_at(x, y, z + 1)].translucent))),
     };
 }
 
@@ -756,7 +758,7 @@ void draw_block(int x, int y, int z) {
     static int lastT = -1, t = 0;
     lastT = -1;
 
-    if (get_at(x, y, z) == bt_air) {
+    if (get_at(x, y, z) == BlockType::Air) {
         return;
     }
 
@@ -766,18 +768,14 @@ void draw_block(int x, int y, int z) {
         return;
     }
 
-    int type = get_at(x, y, z);
-
-    if (1 && type == bt_stone && is_empty(x, y * CHUNK_SIZE + 1, z)) {
-        DrawBillboard(camera, textures[blockData[bt_wool_red].sides[1]],
-                      {(float)x, (float)(y + 1), (float)z}, 1, WHITE);
-    }
+    uint8_t type_idx = (uint8_t)get_at(x, y, z);
+    auto sides = blockData[type_idx].sides;
 
     // === DRAW FACES ===
 
     // Top Face
     if (faces.top) {
-        t = block_textures[blockData[type].sides[0]].id;
+        t = block_textures[sides[0]].id;
         if (lastT != t) {
             rlSetTexture(t);
             lastT = t;
@@ -806,7 +804,7 @@ void draw_block(int x, int y, int z) {
     }
 
     // Right face
-    t = block_textures[blockData[type].sides[1]].id;
+    t = block_textures[sides[1]].id;
     if (t != lastT &&
         (faces.right || faces.left || faces.back || faces.front)) {
         rlSetTexture(t);
@@ -930,7 +928,7 @@ void draw_block(int x, int y, int z) {
 
     // Bottom Face
     if (faces.bottom) {
-        t = block_textures[blockData[type].sides[2]].id;
+        t = block_textures[sides[2]].id;
         if (lastT != t) {
             rlSetTexture(t);
             lastT = t;
@@ -1037,7 +1035,7 @@ void draw2D() {
                        : TextFormat("%i, %i, %i (%i)", (int)looking_at.x,
                                     (int)looking_at.y, (int)looking_at.z,
                                     get_at(looking_at))),
-        blockData[cur_type].name,
+        blockData[(std::size_t)cur_type].name,
         TextFormat("Y velocity: %.2f m/s (%.2f km/h)", vel_y * 20.0f,
                    vel_y * 20.0f * 3.6f),
         TextFormat("Rot (DEG): %.2f, %.2f", rot_x, rot_y),
@@ -1069,7 +1067,7 @@ void draw2D() {
     }
 
     // draw selected block
-    const Texture2D &tex = block_textures[blockData[cur_type].sides[1]];
+    const Texture2D &tex = block_textures[blockData[(int)cur_type].sides[1]];
 
     float selected_block_size = (float)GetScreenHeight() * 0.1f;
     DrawRectangleRec({15, (float)GetScreenHeight() - (selected_block_size + 25),
@@ -1258,14 +1256,15 @@ void blockSelectionMenu() {
 
         float block_type_size = (float)(GetScreenHeight() / 13.5f);
 
+        uint8_t type_idx = 1;
         for (int row = 0; row < rows; row++) {
             for (int col = 0; col < cols; col++) {
-                int type = row * cols + col;
-                if (type > BLOCK_TYPE_COUNT - 1) {
+                type_idx++;
+                if (type_idx >= BLOCK_TYPE_COUNT) {
                     break;
                 }
 
-                const Texture2D &tex = block_textures[blockData[type].sides[1]];
+                const Texture2D &tex = block_textures[blockData[type_idx].sides[1]];
 
                 Vector2 center = {
                     (float)GetScreenWidth() / 2 +
@@ -1284,7 +1283,7 @@ void blockSelectionMenu() {
                 DrawRectangleRec(
                     rec,
                     //{(float)CX-(cTypeShowSize/2+5),(float)H-(cTypeShowSize+25),(float)cTypeShowSize+10,(float)cTypeShowSize+10},
-                    cur_type == type ? WHITE : BLACK);
+                    cur_type == (BlockType)type_idx ? WHITE : BLACK);
 
                 DrawTexturePro(
                     tex, {0.0f, 0.0f, (float)tex.width, (float)tex.height},
@@ -1294,12 +1293,12 @@ void blockSelectionMenu() {
                     {0.0f, 0.0f}, 0.0f, WHITE);
 
                 if (CheckCollisionPointRec(GetMousePosition(), rec)) {
-                    DrawTextC(font, blockData[type].name,
+                    DrawTextC(font, blockData[type_idx].name,
                               {center.x, center.y - block_type_size * 0.8f},
                               GetScreenHeight() / 40.0f, WHITE);
                     if (CheckCollisionPointRec(GetMousePosition(), rec) &&
                         IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                        cur_type = type;
+                        cur_type = (BlockType)type_idx;
                     }
                 }
             }

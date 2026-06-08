@@ -35,7 +35,7 @@ void color4ubGF(float g) {
     rlColor4ub(ug, ug, ug, 255);
 }
 
-void drawCubeTextureFaces(Vector3 position, Faces faces, int type) {
+void drawCubeTextureFaces(Vector3 position, Faces faces, BlockType type) {
 
     if (!faces.back && !faces.bottom && !faces.front && !faces.left &&
         !faces.right && !faces.top) {
@@ -62,6 +62,8 @@ void drawCubeTextureFaces(Vector3 position, Faces faces, int type) {
 
     int t = 0, lastT = t;
 
+    auto sides = blockData[(std::size_t)type].sides;
+
     // 0: left
     // 1: right
     // 2: bottom
@@ -72,9 +74,9 @@ void drawCubeTextureFaces(Vector3 position, Faces faces, int type) {
     // Top Face
     if (faces.top) {
         color4ubGF(b0);
-        t = block_textures[blockData[type].sides[0]].id;
+        t = block_textures[sides[0]].id;
         if (lastT != t) {
-            rlSetTexture(block_textures[blockData[type].sides[0]].id);
+            rlSetTexture(block_textures[sides[0]].id);
             lastT = t;
         }
 
@@ -94,7 +96,7 @@ void drawCubeTextureFaces(Vector3 position, Faces faces, int type) {
     }
 
     if (faces.left || faces.right || faces.front || faces.bottom) {
-        t = block_textures[blockData[type].sides[1]].id;
+        t = block_textures[sides[1]].id;
         if (t != lastT) {
             rlSetTexture(t);
             lastT = t;
@@ -175,7 +177,7 @@ void drawCubeTextureFaces(Vector3 position, Faces faces, int type) {
 
     // Bottom Face
     if (faces.bottom) {
-        t = block_textures[blockData[type].sides[1]].id;
+        t = block_textures[sides[1]].id;
         if (lastT != t) {
             rlSetTexture(t);
             lastT = t;

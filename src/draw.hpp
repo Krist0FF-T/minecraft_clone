@@ -19,7 +19,7 @@ void init_textures(const char *texture_pack);
 
 void color4ubGF(float g);
 
-void drawCubeTextureFaces(Vector3 position, Faces faces, int type);
+void drawCubeTextureFaces(Vector3 position, Faces faces, BlockType type);
 
 void drawKeyStroke(Vector2 pos, int key, float size);
 

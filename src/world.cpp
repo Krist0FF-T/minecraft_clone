@@ -1,6 +1,5 @@
 #include "world.hpp"
 
-#include <cstdint>
 #include <fstream>
 
 #include "blocktypes.hpp"
@@ -18,29 +17,29 @@ int chunk_of(int y) {
     return (int)y / CHUNK_SIZE;
 }
 
-int get_at(int x, int y, int z) {
+BlockType get_at(int x, int y, int z) {
     if (on_map(x, y, z)) {
         return blocks[chunk_of(y)][x][y % CHUNK_SIZE][z];
     }
-    return bt_air;
+    return BlockType::Air;
 }
 
-int get_at(Vector3 vec) {
+BlockType get_at(Vector3 vec) {
     return get_at((int)vec.x, (int)vec.y, (int)vec.z);
 }
 
-void set_at(int x, int y, int z, int8_t type) {
+void set_at(int x, int y, int z, BlockType type) {
     if (on_map(x, y, z)) {
         blocks[chunk_of(y)][x][y % CHUNK_SIZE][z] = type;
     }
 }
 
-void set_at(Vector3 vec, int8_t type) {
+void set_at(Vector3 vec, BlockType type) {
     set_at((int)vec.x, (int)vec.y, (int)vec.z, type);
 }
 
 bool is_empty(int x, int y, int z) {
-    return get_at(x, y, z) == bt_air;
+    return get_at(x, y, z) == BlockType::Air;
 }
 
 bool is_empty(Vector3 vec) {
@@ -180,7 +179,7 @@ c4v genC4v(int x, int y, int z, int faceN) {
 }
 
 void gen_tree(int x, int y, int z) {
-    if (get_at(x, y, z) == bt_grass) {
+    if (get_at(x, y, z) == BlockType::Grass) {
         return;
     }
 
@@ -191,7 +190,7 @@ void gen_tree(int x, int y, int z) {
     // 5: dirt
     // 3: green
 
-    int uBlocks[2] = {bt_log, bt_leaf};
+    BlockType uBlocks[2] = {BlockType::Log, BlockType::Leaf};
 
     int treeBlocks[width * height * length] = {
         /*
@@ -233,9 +232,9 @@ void gen_tree(int x, int y, int z) {
                 if (treeBlocks[ind] != -1 &&
                     !(treeBlocks[ind] == -2 && rand() % 2 == 0) &&
                     is_empty(x + j - width / 2, y + i, z + k - length / 2)) {
-                    int type;
+                    BlockType type;
                     if (treeBlocks[ind] == -2) {
-                        type = bt_leaf;
+                        type = BlockType::Leaf;
                     } else {
                         type = uBlocks[treeBlocks[ind]];
                     }
@@ -250,15 +249,11 @@ void gen_tree(int x, int y, int z) {
 }
 
 void clear_world() {
-    for (int i = 0; i < CHUNK_COUNT; i++) {
-        for (int x = 0; x < CHUNK_SIZE; x++) {
-            for (int y = 0; y < CHUNK_SIZE; y++) {
-                for (int z = 0; z < CHUNK_SIZE; z++) {
-                    blocks[i][x][y][z] = -1;
-                }
-            }
-        }
-    }
+    world_fill(
+        Vector3Zeros,
+        {(float)CHUNK_SIZE-1, (float)CHUNK_SIZE-1, (float)CHUNK_SIZE-1},
+        BlockType::Air
+    );
 }
 
 int save_world(std::string fName, const Cube &pCube) {
@@ -290,7 +285,7 @@ int save_world(std::string fName, const Cube &pCube) {
     return 0;
 }
 
-void world_fill(Vector3 a, Vector3 b, char block_type) {
+void world_fill(Vector3 a, Vector3 b, BlockType block_type) {
     Vector3 p1 { std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z) };
     Vector3 p2 { std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z) };
 

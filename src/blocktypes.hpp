@@ -1,15 +1,16 @@
 #pragma once
 
+#include <cstdint>
 #include <array>
 
 #include <raylib.h>
 
-static const int BLOCK_TYPE_COUNT = 21;
+static const int BLOCK_TYPE_COUNT = 22;
 static const int TEXTURE_COUNT = 23;
 
 static const char *TEXTURE_NAMES[TEXTURE_COUNT]{
     "grass_top",  "grass_side",  "dirt",      "sand",        "stone",
-    "brick",      "stone_brick", "log_top",   "log_side",    "leaf",
+    "brick",      "stone_bricks", "log_top",   "log_side",    "leaf",
     "wool_red",   "wool_lime",   "wool_blue", "wool_orange", "wool_yellow",
     "wool_lblue", "wool_black",  "wool_gray", "wool_white",  "cobblestone",
     "slime",      "planks",      "bookshelf",
@@ -23,7 +24,7 @@ enum tne {
     tne_sand,
     tne_stone,
     tne_brick,
-    tne_stone_brick,
+    tne_stone_bricks,
     tne_log_top,
     tne_log_side,
     tne_leaf,
@@ -45,29 +46,29 @@ enum tne {
 enum biome { biome_forest = 0, biome_desert };
 
 // block types
-enum bt {
-    bt_air = -1,
-    bt_grass,
-    bt_dirt,
-    bt_sand,
-    bt_stone,
-    bt_brick,
-    bt_stone_brick,
-    bt_log,
-    bt_leaf,
-    bt_wool_red,
-    bt_wool_lime,
-    bt_wool_blue,
-    bt_orange,
-    bt_wool_yellow,
-    bt_wool_lblue,
-    bt_wool_black,
-    bt_wool_gray,
-    bt_wool_white,
-    bt_cobblestone,
-    bt_slime,
-    bt_planks,
-    bt_bookshelf,
+enum class BlockType : std::uint8_t {
+    Air,
+    Grass,
+    Dirt,
+    Sand,
+    Stone,
+    Brick,
+    StoneBrick,
+    Log,
+    Leaf,
+    WoolRed,
+    WoolLime,
+    WoolBlue,
+    WoolOrange,
+    WoolYellow,
+    WoolLightBlue,
+    WoolBlack,
+    WoolGray,
+    WoolWhite,
+    Cobblestone,
+    Slime,
+    Planks,
+    Bookshelf,
 };
 
 struct BlockData {
@@ -78,6 +79,11 @@ struct BlockData {
 
 // clang-format off
 static const std::array<BlockData, BLOCK_TYPE_COUNT> blockData {
+    (BlockData){
+        "Air",
+        {tne_grass_top, tne_grass_side, tne_dirt},
+        true, false, false
+    },
     (BlockData){
         "Grass",
         {tne_grass_top, tne_grass_side, tne_dirt},
@@ -110,7 +116,7 @@ static const std::array<BlockData, BLOCK_TYPE_COUNT> blockData {
 
     (BlockData){
         "Stone bricks",
-        {tne_stone_brick,tne_stone_brick,tne_stone_brick},
+        {tne_stone_bricks,tne_stone_bricks,tne_stone_bricks},
         0,0,0
     },
 
