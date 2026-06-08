@@ -12,7 +12,6 @@
 // own
 #include "blocktypes.hpp"
 #include "draw.hpp"
-#include "sound.hpp"
 #include "util.hpp"
 #include "world.hpp"
 
@@ -52,6 +51,13 @@ static Camera3D camera;
 // static const int cTypeShowSize = (float)(H / 13.5f), fontSize = H / 40;
 
 static Vector3 looking_at = {0, 0, 0};
+
+static const int N_SOUNDS = 2;
+static Sound sounds[N_SOUNDS];
+
+static const char *soundNames[N_SOUNDS]{"place", "break"};
+
+enum SOUND { SOUND_PLACE = 0, SOUND_BREAK };
 
 static std::vector<std::string> notifications;
 static float notification_cooldown = 0.0f;
@@ -1139,8 +1145,10 @@ void init() {
     font = LoadFont(fontFName);
     initTextures("mc16x");
 
-    // InitAudioDevice();
-    init_sounds();
+    InitAudioDevice();
+    for (int i = 0; i < N_SOUNDS; i++) {
+        sounds[i] = LoadSound(TextFormat("sound/%s.wav", soundNames[i]));
+    }
 
     camera.position = (Vector3){CHUNK_SIZE / 2.0f, 20.0f, CHUNK_SIZE / 2.0f};
     camera.target = (Vector3){0.0f, 0.0f, 0.0f};
@@ -1164,8 +1172,9 @@ void deInit() {
         UnloadTexture(textures[i]);
     }
 
-    deinit_sounds();
-    // cLog(1, "sounds unloaded");
+    for (int i = 0; i < N_SOUNDS; i++) {
+        UnloadSound(sounds[i]);
+    }
 
     CloseWindow();
     // cLog(1, "closed without any errors");
