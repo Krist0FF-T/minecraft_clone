@@ -17,6 +17,11 @@
 
 #define VERSION "0.0.6 (DEVMODE)"
 
+static Font font;
+static const char *fontFName = "fonts/retro.ttf";
+
+static const Color BACKGROUND_COLOR {100, 180, 240, 255};
+
 static const float PLAYER_WIDTH = 0.6f, PLAYER_HEIGHT = 1.8f;
 static Cube player_cube{{0, 0, 0}, {PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_WIDTH}};
 
@@ -173,22 +178,12 @@ void command_fill() {
         return;
     }
 
-    Vector3 p1{(float)std::min(x1, x2), (float)std::min(y1, y2),
-               (float)std::min(z1, z2)};
-    Vector3 p2{(float)std::max(x1, x2), (float)std::max(y1, y2),
-               (float)std::max(z1, z2)};
-
-    int c, rY;
-
-    for (int x = (int)p1.x; x < (int)p2.x + 1; x++) {
-        for (int y = (int)p1.y; y < (int)p2.y + 1; y++) {
-            c = (int)(y / CHUNK_SIZE);
-            rY = (y % CHUNK_SIZE);
-            for (int z = (int)p1.z; z < (int)p2.z + 1; z++) {
-                blocks[c][x][rY][z] = type;
-            }
-        }
-    }
+    world_fill(
+        // NOTE: these don't make sense to be float
+        {(float)x1, (float)y1, (float)z1},
+        {(float)x2, (float)y2, (float)z2},
+       type
+    );
 }
 
 void update_block() {
@@ -502,12 +497,6 @@ void update() {
         fast_place = !fast_place;
     }
 
-    if (IsKeyPressed(KEY_T)) {
-        player_cube.pos = tp_point;
-        notify(TextFormat("Teleported to: %.1f, %.1f, %.1f", tp_point.x,
-                          tp_point.y, tp_point.z));
-    }
-
     Vector3 placeAt = Vector3Add(looking_at, placeAdd);
 
     if ((IsKeyDown(KEY_X) || IsMouseButtonDown(MOUSE_MIDDLE_BUTTON)) &&
@@ -568,8 +557,7 @@ void update() {
     }
 
     if (IsKeyDown(KEY_Q) && looking_at.x != -1) {
-        blocks[chunk_of(looking_at.y)][(int)looking_at.x]
-              [(int)looking_at.y % CHUNK_SIZE][(int)looking_at.z] = cur_type;
+        set_at(looking_at, cur_type);
     }
 
     if (IsKeyPressed(KEY_F2)) {
@@ -621,7 +609,7 @@ void update() {
     // change texture pack
     if (ctrl && IsKeyPressed(KEY_Z)) {
         std::string name = guiInputTxt("texture pack name");
-        initTextures(name.c_str());
+        init_textures(name.c_str());
     }
 
     if (ctrl && IsKeyPressed(KEY_B)) {
@@ -765,7 +753,7 @@ void draw_block(int x, int y, int z) {
         b2 = 0.8f,                   // front, back
         b_bottom = 0.7f;             // bottom
 
-    static int lastT, t;
+    static int lastT = -1, t = 0;
     lastT = -1;
 
     if (get_at(x, y, z) == bt_air) {
@@ -789,7 +777,7 @@ void draw_block(int x, int y, int z) {
 
     // Top Face
     if (faces.top) {
-        t = textures[blockData[type].sides[0]].id;
+        t = block_textures[blockData[type].sides[0]].id;
         if (lastT != t) {
             rlSetTexture(t);
             lastT = t;
@@ -818,7 +806,7 @@ void draw_block(int x, int y, int z) {
     }
 
     // Right face
-    t = textures[blockData[type].sides[1]].id;
+    t = block_textures[blockData[type].sides[1]].id;
     if (t != lastT &&
         (faces.right || faces.left || faces.back || faces.front)) {
         rlSetTexture(t);
@@ -942,7 +930,7 @@ void draw_block(int x, int y, int z) {
 
     // Bottom Face
     if (faces.bottom) {
-        t = textures[blockData[type].sides[2]].id;
+        t = block_textures[blockData[type].sides[2]].id;
         if (lastT != t) {
             rlSetTexture(t);
             lastT = t;
@@ -1075,13 +1063,13 @@ void draw2D() {
                                    255.0f)
             : 255;
 
-        DrawTextC(notifications[i].c_str(),
+        DrawTextC(font, notifications[i].c_str(),
                   {(float)GetScreenWidth() * 0.5f, 60 + (float)i2 * 30},
                   fontSize, (Color){255, 255, 255, a});
     }
 
     // draw selected block
-    const Texture2D &tex = textures[blockData[cur_type].sides[1]];
+    const Texture2D &tex = block_textures[blockData[cur_type].sides[1]];
 
     float selected_block_size = (float)GetScreenHeight() * 0.1f;
     DrawRectangleRec({15, (float)GetScreenHeight() - (selected_block_size + 25),
@@ -1123,7 +1111,7 @@ void init() {
     DisableCursor();
 
     font = LoadFont(fontFName);
-    initTextures("mc16x");
+    init_textures("minecraft");
 
     InitAudioDevice();
     for (int i = 0; i < N_SOUNDS; i++) {
@@ -1144,7 +1132,7 @@ void deInit() {
     UnloadFont(font);
 
     for (int i = 0; i < TEXTURE_COUNT; i++) {
-        UnloadTexture(textures[i]);
+        UnloadTexture(block_textures[i]);
     }
 
     for (int i = 0; i < N_SOUNDS; i++) {
@@ -1186,11 +1174,11 @@ std::string guiInputTxt(std::string displayText) {
         draw2D();
 
         DrawTextC(
-            displayText.c_str(),
+            font, displayText.c_str(),
             {(float)GetScreenWidth() / 2, (float)GetScreenHeight() / 2 - 40},
             GetScreenHeight() / 10.0f, WHITE);
         DrawTextC(
-            txt.c_str(),
+            font, txt.c_str(),
             {(float)GetScreenWidth() / 2, (float)GetScreenHeight() / 2 + 40},
             GetScreenHeight() / 10.0f, WHITE);
 
@@ -1234,6 +1222,7 @@ void pause() {
         DrawRectangle(100, 100, 100, 100, RED);
 
         DrawTextC(
+            font,
             "Paused.",
             {(float)GetScreenWidth() * 0.5f, (float)GetScreenHeight() * 0.5f},
             GetScreenHeight() / 40.0f, WHITE);
@@ -1276,7 +1265,7 @@ void blockSelectionMenu() {
                     break;
                 }
 
-                const Texture2D &tex = textures[blockData[type].sides[1]];
+                const Texture2D &tex = block_textures[blockData[type].sides[1]];
 
                 Vector2 center = {
                     (float)GetScreenWidth() / 2 +
@@ -1305,7 +1294,7 @@ void blockSelectionMenu() {
                     {0.0f, 0.0f}, 0.0f, WHITE);
 
                 if (CheckCollisionPointRec(GetMousePosition(), rec)) {
-                    DrawTextC(blockData[type].name,
+                    DrawTextC(font, blockData[type].name,
                               {center.x, center.y - block_type_size * 0.8f},
                               GetScreenHeight() / 40.0f, WHITE);
                     if (CheckCollisionPointRec(GetMousePosition(), rec) &&

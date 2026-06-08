@@ -16,37 +16,12 @@
 #define dSin(x) (sinf(x * PI / 180.0f))
 #endif
 
-std::vector<std::string> split_str(std::string str, char delimiter) {
-    std::vector<std::string> strVec = {};
-    std::string nStr = "";
+std::vector<std::string> split_str(const std::string& str, char delimiter);
 
-    for (char ch : str) {
-        if (ch == delimiter) {
-            if (nStr.size() == 0) {
-                continue;
-            }
+// draw centered text
+void DrawTextC(Font font, const char *text, Vector2 center, float fontSize, Color color);
 
-            strVec.push_back(nStr);
-            nStr = "";
-        } else {
-            nStr.push_back(ch);
-        }
-    }
-    strVec.push_back(nStr);
-    return strVec;
-}
-
-static Font font;
-static const char *fontFName = "fonts/retro.ttf";
-
-static const Color BACKGROUND_COLOR{100, 180, 240, 255};
-
-void DrawTextC(const char *text, Vector2 center, float fontSize, Color color) {
-    DrawTextEx(font, text,
-               {center.x - MeasureTextEx(font, text, fontSize, 0).x * 0.5f,
-                center.y - fontSize / 2},
-               fontSize, 0, color);
-}
+void take_screenshot();
 
 enum faceEnum {
     face_left = 0, // X -
@@ -60,17 +35,6 @@ enum faceEnum {
 struct c4v {
     float tl, bl, tr, br;
 };
-
-void take_screenshot() {
-    Image screenImage = LoadImageFromScreen();
-    int screenShotId = 1;
-
-    while (FileExists(TextFormat("screenshots/%i.png", screenShotId))) {
-        screenShotId++;
-    }
-    ExportImage(screenImage, TextFormat("screenshots/%i.png", screenShotId));
-    UnloadImage(screenImage);
-}
 
 struct Cube {
     Vector3 pos, size;

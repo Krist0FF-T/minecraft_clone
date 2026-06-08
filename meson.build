@@ -20,6 +20,11 @@ endif
 
 executable(
   'game',
-  'src/main.cpp',
+  [
+    'src/main.cpp',
+    'src/util.cpp',
+    'src/world.cpp',
+    'src/draw.cpp',
+  ],
   dependencies: raylib_dep,
 )
