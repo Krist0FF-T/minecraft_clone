@@ -4,6 +4,9 @@
 
 #include "blocktypes.hpp"
 
+BlockType blocks[CHUNK_COUNT][CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
+std::vector<FallingBlock> falling_blocks;
+
 bool on_map(int x, int y, int z) {
     return (0 <= x && x < CHUNK_SIZE && 0 <= y &&
             y < CHUNK_SIZE * CHUNK_COUNT && 0 <= z && z < CHUNK_SIZE);

@@ -11,7 +11,7 @@
 static const int CHUNK_COUNT = 1;
 static const int CHUNK_SIZE = 64;
 
-static BlockType blocks[CHUNK_COUNT][CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
+extern BlockType blocks[CHUNK_COUNT][CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
 
 struct FallingBlock {
     Vector3 vel;
@@ -19,7 +19,7 @@ struct FallingBlock {
     BlockType type;
 };
 
-static std::vector<FallingBlock> falling_blocks;
+extern std::vector<FallingBlock> falling_blocks;
 
 int load_world(std::string fName, Cube &pCube);
 int save_world(std::string fName, const Cube &pCube);
