@@ -20,6 +20,8 @@
 static Font font;
 static const char *fontFName = "fonts/retro.ttf";
 
+World world;
+
 static const Color BACKGROUND_COLOR {100, 180, 240, 255};
 
 static const float PLAYER_WIDTH = 0.6f, PLAYER_HEIGHT = 1.8f;
@@ -49,7 +51,6 @@ static bool able_to_jump = false;
 static bool flying = false;
 
 static bool fast_place = 0;
-static bool falling_enabled = true;
 static bool smoothLighting = true;
 
 static Camera3D camera;
@@ -115,12 +116,12 @@ void place_player() {
         for (int y = CHUNK_COUNT * CHUNK_SIZE - 1; y > -1 && !placed; y--) {
             placed = true;
             for (int a = 1; a < 3 && placed; a++) {
-                if (!is_empty(x, y + a, z)) {
+                if (!world.is_empty(x, y + a, z)) {
                     placed = false;
                 }
             }
 
-            if (is_empty(x, y, z)) {
+            if (world.is_empty(x, y, z)) {
                 placed = false;
             }
 
@@ -175,12 +176,12 @@ void command_fill() {
         return;
     }
 
-    if (!on_map(x1, y1, z1) || !on_map(x2, y2, z2)) {
+    if (!world.on_map(x1, y1, z1) || !world.on_map(x2, y2, z2)) {
         notify("Not on map.");
         return;
     }
 
-    world_fill(
+    world.fill(
         // NOTE: these don't make sense to be float
         {(float)x1, (float)y1, (float)z1},
         {(float)x2, (float)y2, (float)z2},
@@ -198,99 +199,7 @@ void tick() {
         vel_y *= 0.98f;
     }
 
-    if (falling_enabled) {
-        for (FallingBlock &fb : falling_blocks) {
-            fb.vel.y -= 0.08f;
-            fb.vel.y *= 0.98f;
-        }
-    }
-
-    for (size_t j = 0; falling_enabled && j < falling_blocks.size(); j++) {
-        FallingBlock &fb = falling_blocks[j];
-        fb.vel.y -= 0.08f;
-        fb.vel.y *= 0.98f;
-        if (fb.pos.y < -200) {
-            falling_blocks.erase(falling_blocks.begin() + j);
-            j--;
-        }
-        // fb.pos += fb.vel; -- done elsewhere
-    }
-
-    int player_chunk = player_cube.pos.y / CHUNK_SIZE;
-    for (int c = std::clamp(player_chunk - 1, 0, CHUNK_COUNT - 1);
-         c < std::clamp(player_chunk + 1, 0, CHUNK_COUNT - 1) + 1; c++) {
-        for (int x = 0; x < CHUNK_SIZE; x++) {
-            for (int y = 0; y < CHUNK_SIZE; y++) {
-                for (int z = 0; z < CHUNK_SIZE; z++) {
-                    BlockType type = blocks[c][x][y][z];
-
-                    if (type == BlockType::Air) {
-                        continue;
-                    }
-
-                    switch (type) {
-
-                    case BlockType::Grass: {
-                        if (get_at(x, y + c * CHUNK_SIZE + 1, z) != BlockType::Air) {
-                            blocks[c][x][y][z] = BlockType::Dirt;
-                        }
-
-                        break;
-                    }
-
-                    case BlockType::Dirt: {
-                        if (BlockType::Air != get_at(x, y + 1 + c * CHUNK_SIZE, z)) {
-                            break;
-                        }
-
-                        int grass_neighbors = 0;
-
-                        for (int x2 = -1; x2 <= 1; x2++) {
-                            for (int y2 = -1; y2 <= 1; y2++) {
-                                for (int z2 = -1; z2 <= 1; z2++) {
-                                    if (0 != x2 + z2 &&
-                                        on_map(x + x2, y + y2 + c * CHUNK_SIZE,
-                                               z + z2) &&
-                                        BlockType::Grass ==
-                                            get_at(x + x2,
-                                                   y + y2 + c * CHUNK_SIZE,
-                                                   z + z2)) {
-                                        grass_neighbors++;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (grass_neighbors > 0 && rand() % 10 == 0) {
-                            set_at(x, y + c * CHUNK_SIZE, z, BlockType::Grass);
-                        }
-
-                        break;
-                    }
-
-                    case BlockType::Sand: {
-                        if (get_at(x, y + c * CHUNK_SIZE - 1, z) == BlockType::Air
-                            ) {
-
-                            falling_blocks.push_back((FallingBlock){
-                                {0.0f, 0.0f, 0.0f},
-                                (Vector3){(float)x, (float)(y + c * CHUNK_SIZE),
-                                          (float)z},
-                                type});
-
-                            set_at(x, y + c * CHUNK_SIZE, z, BlockType::Air);
-                        }
-                        break;
-                    }
-
-                    default: {
-                        break;
-                    }
-                    }
-                }
-            }
-        }
-    }
+    world.update();
 }
 
 void update() {
@@ -338,21 +247,7 @@ void update() {
         vel_y = (up - down) * player_speed * TICK_TIME;
     }
 
-    for (size_t j = 0; falling_enabled && j < falling_blocks.size(); j++) {
-        FallingBlock &fb = falling_blocks[j];
-        Vector3 delta = fb.vel * dt * 20.0f;
-        if (get_at(fb.pos + delta) == BlockType::Air) {
-            fb.pos += delta;
-        } else {
-            if (fb.type == BlockType::WoolRed) {
-                set_at(fb.pos + delta, BlockType::Air);
-            } else {
-                set_at(fb.pos, fb.type);
-            }
-            falling_blocks.erase(falling_blocks.begin() + j);
-            j--;
-        }
-    }
+    world.update_falling_blocks(dt);
 
     Vector3 player_pos_delta;
 
@@ -382,11 +277,11 @@ void update() {
             for (int z = (int)player_cube.getTLF().z - 1;
                  z < (int)std::ceilf(player_cube.getBRB().z) + 2 + testL + 1;
                  z++) {
-                if (flying || !on_map(x, y, z) || is_empty(x, y, z)) {
+                if (flying || world.is_empty(x, y, z)) {
                     continue;
                 }
 
-                Cube cube = blockCube(x, y, z);
+                Cube cube = world.block_cube(x, y, z);
 
                 if (player_cube.movedCopy(player_pos_delta.x, 0, 0)
                         .collide(cube)) {
@@ -400,7 +295,7 @@ void update() {
 
                     if (player_cube.getTLF().y + PLAYER_HEIGHT > (float)y) {
                         able_to_jump = true;
-                        if (get_at(x, y, z) == BlockType::Slime) {
+                        if (world.get_at(x, y, z) == BlockType::Slime) {
                             vel_y = 4;
                         }
                     }
@@ -461,7 +356,7 @@ void update() {
             (Vector3){roundf(lookAtf.x), roundf(lookAtf.y), roundf(lookAtf.z)};
 
         // block found
-        if (!is_empty(looking_at)) {
+        if (!world.is_empty(looking_at)) {
 
             float dx = lookAtf.x - looking_at.x;
             float dy = lookAtf.y - looking_at.y;
@@ -473,17 +368,17 @@ void update() {
 
             float add = 0.5f - REACH_STEP;
 
-            if (dx < -add && is_empty(x - 1, y, z)) {
+            if (dx < -add && world.is_empty(x - 1, y, z)) {
                 placeAdd = (Vector3){-1, 0, 0};
-            } else if (dx > add && is_empty(x + 1, y, z)) {
+            } else if (dx > add && world.is_empty(x + 1, y, z)) {
                 placeAdd = (Vector3){1, 0, 0};
-            } else if (dy < -add && is_empty(x, y - 1, z)) {
+            } else if (dy < -add && world.is_empty(x, y - 1, z)) {
                 placeAdd = (Vector3){0, -1, 0};
-            } else if (dy > add && is_empty(x, y + 1, z)) {
+            } else if (dy > add && world.is_empty(x, y + 1, z)) {
                 placeAdd = (Vector3){0, 1, 0};
-            } else if (dz < -add && is_empty(x, y, z - 1)) {
+            } else if (dz < -add && world.is_empty(x, y, z - 1)) {
                 placeAdd = (Vector3){0, 0, -1};
-            } else if (dz > add && is_empty(x, y, z + 1)) {
+            } else if (dz > add && world.is_empty(x, y, z + 1)) {
                 placeAdd = (Vector3){0, 0, 1};
             }
 
@@ -503,8 +398,8 @@ void update() {
     Vector3 placeAt = Vector3Add(looking_at, placeAdd);
 
     if ((IsKeyDown(KEY_X) || IsMouseButtonDown(MOUSE_MIDDLE_BUTTON)) &&
-        on_map(looking_at) && !is_empty(looking_at)) {
-        cur_type = get_at(looking_at);
+        !world.is_empty(looking_at)) {
+        cur_type = world.get_at(looking_at);
     }
 
     bool action_break = (
@@ -512,9 +407,9 @@ void update() {
         (fast_place ? IsMouseButtonDown : IsMouseButtonPressed)(MOUSE_LEFT_BUTTON)
     );
     if (action_break &&
-        !is_empty((int)looking_at.x, (int)looking_at.y, (int)looking_at.z) &&
-        on_map(looking_at) && on_map(looking_at)) {
-        set_at(looking_at, BlockType::Air);
+        !world.is_empty((int)looking_at.x, (int)looking_at.y, (int)looking_at.z) &&
+        world.on_map(looking_at) && world.on_map(looking_at)) {
+        world.set_at(looking_at, BlockType::Air);
         PlaySound(sounds[SOUND_BREAK]);
     }
 
@@ -522,12 +417,12 @@ void update() {
         (fast_place ? IsKeyDown : IsKeyPressed)(KEY_O) ||
         (fast_place ? IsMouseButtonDown : IsMouseButtonPressed)(MOUSE_RIGHT_BUTTON)
     );
-    if (action_place && (flying || !player_cube.collide(blockCube(placeAt)))) {
-        if (on_map(placeAt) && is_empty(placeAt)) {
-            set_at(placeAt, cur_type);
+    if (action_place && (flying || !player_cube.collide(world.block_cube(placeAt)))) {
+        if (world.on_map(placeAt) && world.is_empty(placeAt)) {
+            world.set_at(placeAt, cur_type);
             // fallingBlocks.push_back({0, {placeAt.x, placeAt.y+0.5f,
             // placeAt.z},
-            set_at(placeAt, cur_type);
+            world.set_at(placeAt, cur_type);
             PlaySound(sounds[SOUND_PLACE]);
         } else if (looking_at.x == -1) {
             Vector3 vel{dSin(rot_y) * dCos(rot_x), dCos(rot_y),
@@ -535,7 +430,7 @@ void update() {
             Vector3 pos = player_cube.pos + player_cube.size / 2 + vel * 2;
             vel *= 2;
 
-            falling_blocks.push_back((FallingBlock){
+            world.falling_blocks.push_back((FallingBlock) {
                 vel,
                 pos,
                 cur_type,
@@ -543,16 +438,16 @@ void update() {
         }
     }
 
-    if (on_map(placeAt) && IsKeyPressed(KEY_I)) {
-        gen_tree(placeAt.x, placeAt.y, placeAt.z);
+    if (world.on_map(placeAt) && IsKeyPressed(KEY_I)) {
+        world.gen_tree(placeAt.x, placeAt.y, placeAt.z);
     }
 
     if (IsKeyPressed(KEY_ESCAPE)) {
         pause();
     }
 
-    if (IsKeyPressed(KEY_G)) {
-        falling_enabled = !falling_enabled;
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        pause();
     }
 
     if (IsKeyPressed(KEY_E)) {
@@ -560,7 +455,7 @@ void update() {
     }
 
     if (IsKeyDown(KEY_Q) && looking_at.x != -1) {
-        set_at(looking_at, cur_type);
+        world.set_at(looking_at, cur_type);
     }
 
     if (IsKeyPressed(KEY_F2)) {
@@ -575,7 +470,7 @@ void update() {
     // save world
     if (ctrl && IsKeyPressed(KEY_S)) {
         std::string fName = guiInputTxt("save as");
-        if (fName != "" && save_world(fName, player_cube) == 0) {
+        if (fName != "" && world.save(fName, player_cube) == 0) {
             printf("[+] worlds saved.\n");
             notify("World saved");
         } else {
@@ -588,7 +483,7 @@ void update() {
     // load world
     if (ctrl && IsKeyPressed(KEY_L)) {
         std::string fName = guiInputTxt("load from");
-        if (fName != "" && load_world(fName, player_cube) == 0) {
+        if (fName != "" && world.load(fName, player_cube) == 0) {
             vel_y = 0;
             notify("World loaded");
             printf("[+] world loaded.\n");
@@ -606,7 +501,7 @@ void update() {
 
     // clear world
     if (ctrl && IsKeyPressed(KEY_C)) {
-        clear_world();
+        world.clear();
     }
 
     // change texture pack
@@ -623,26 +518,13 @@ void update() {
         }
 
         else if (command == "replace") {
-            BlockType t1 = BlockType::Air, t2 = BlockType::Air;
-
             try {
-                t1 = (BlockType) std::stoi(guiInputTxt("from"));
-                t2 = (BlockType) std::stoi(guiInputTxt("to"));
+                BlockType a = (BlockType)std::stoi(guiInputTxt("from"));
+                BlockType b = (BlockType)std::stoi(guiInputTxt("to"));
+                world.replace(a, b);
             } catch (std::exception &e) {
                 printf("[ERROR] %s", e.what());
                 notify(TextFormat("[ERROR] %s", e.what()));
-            }
-
-            for (int c = 0; c < CHUNK_COUNT; c++) {
-                for (int x = 0; x < CHUNK_SIZE; x++) {
-                    for (int y = 0; y < CHUNK_SIZE; y++) {
-                        for (int z = 0; z < CHUNK_SIZE; z++) {
-                            if (blocks[c][x][y][z] == t1) {
-                                blocks[c][x][y][z] = t2;
-                            }
-                        }
-                    }
-                }
             }
         }
 
@@ -686,30 +568,6 @@ void update() {
             }
         }
 
-        else if (command == "rand_replace") {
-            std::string input = guiInputTxt("block to replace");
-            try {
-                BlockType type = (BlockType) std::stoi(input);
-
-                for (int c = 0; c < CHUNK_COUNT; c++) {
-                    for (int y = 0; y < CHUNK_SIZE; y++) {
-                        for (int x = 0; x < CHUNK_SIZE; x++) {
-                            for (int z = 0; z < CHUNK_SIZE; z++) {
-                                if (blocks[c][x][y][z] == type) {
-                                    int idx = rand() % BLOCK_TYPE_COUNT;
-                                    blocks[c][x][y][z] = (BlockType) idx;
-                                }
-                            }
-                        }
-                    }
-                }
-
-            } catch (std::exception &e) {
-                printf("[ERROR] %s\n", e.what());
-                notify(TextFormat("[ERROR] %s", e.what()));
-            }
-        }
-
         else {
             notify("Invalid command.");
         }
@@ -723,33 +581,37 @@ Faces getFaces(int x, int y, int z) {
 
     return {
         (cx < x &&
-         (is_empty(x - 1, y, z) ||
-          (lt && blockData[(int)get_at(x - 1, y, z)].translucent))),
+         (world.is_empty(x - 1, y, z) ||
+          (lt && blockData[(int)world.get_at(x - 1, y, z)].translucent))),
         (cx > x &&
-         (is_empty(x + 1, y, z) ||
-          (lt && blockData[(int)get_at(x + 1, y, z)].translucent))),
+         (world.is_empty(x + 1, y, z) ||
+          (lt && blockData[(int)world.get_at(x + 1, y, z)].translucent))),
         (cy < y &&
-         (is_empty(x, y - 1, z) ||
-          (y > 0 && lt && blockData[(int)get_at(x, y - 1, z)].translucent))),
+         (world.is_empty(x, y - 1, z) ||
+          (y > 0 && lt && blockData[(int)world.get_at(x, y - 1, z)].translucent))),
         (cy > y &&
-         (is_empty(x, y + 1, z) ||
+         (world.is_empty(x, y + 1, z) ||
           (y < CHUNK_SIZE * CHUNK_COUNT && lt &&
-           blockData[(int)get_at(x, y + 1, z)].translucent))),
+           blockData[(int)world.get_at(x, y + 1, z)].translucent))),
         (cz < z &&
-         (is_empty(x, y, z - 1) ||
-          (z > 0 && lt && blockData[(int)get_at(x, y, z - 1)].translucent))),
+         (world.is_empty(x, y, z - 1) ||
+          (z > 0 && lt && blockData[(int)world.get_at(x, y, z - 1)].translucent))),
         (cz > z &&
-         (is_empty(x, y, z + 1) ||
+         (world.is_empty(x, y, z + 1) ||
           (z < CHUNK_SIZE && lt &&
-           blockData[(int)get_at(x, y, z + 1)].translucent))),
+           blockData[(int)world.get_at(x, y, z + 1)].translucent))),
     };
 }
 
 c4v getC4v(int x, int y, int z, int faceN) {
-    return (smoothLighting ? genC4v(x, y, z, faceN) : (c4v){1, 1, 1, 1});
+    return (smoothLighting ? world.genC4v(x, y, z, faceN) : (c4v){1, 1, 1, 1});
 }
 
 void draw_block(int x, int y, int z) {
+    if (world.is_empty(x, y, z)) {
+        return;
+    }
+
     static const float b_top = 1.0f, // top
         b1 = 0.9f,                   // left, right
         b2 = 0.8f,                   // front, back
@@ -758,17 +620,13 @@ void draw_block(int x, int y, int z) {
     static int lastT = -1, t = 0;
     lastT = -1;
 
-    if (get_at(x, y, z) == BlockType::Air) {
-        return;
-    }
-
     Faces faces = getFaces(x, y, z);
     if (!faces.back && !faces.front && !faces.left && !faces.right &&
         !faces.top && !faces.bottom) {
         return;
     }
 
-    uint8_t type_idx = (uint8_t)get_at(x, y, z);
+    uint8_t type_idx = (uint8_t)world.get_at(x, y, z);
     auto sides = blockData[type_idx].sides;
 
     // === DRAW FACES ===
@@ -979,9 +837,7 @@ void draw3D() {
     rlPushMatrix();
     rlBegin(RL_QUADS);
 
-    for (size_t i = 0; i < falling_blocks.size(); i++) {
-        FallingBlock &fb = falling_blocks[i];
-
+    for (FallingBlock& fb : world.falling_blocks) {
         if (abs(fb.pos.y - camera.position.y) > render_dist * CHUNK_SIZE) {
             continue;
         }
@@ -1009,7 +865,7 @@ void draw3D() {
     rlEnd();
     rlPopMatrix();
 
-    if (on_map(looking_at)) {
+    if (world.on_map(looking_at)) {
         Color c = BLACK; // ColorFromHSV((float)GetTime()*20.0f, 1.0f, 1.0f);
         // DrawCube(lookAt, 1,1,1, c);
         float las = 1.05f;
@@ -1034,7 +890,7 @@ void draw2D() {
                        ? "----"
                        : TextFormat("%i, %i, %i (%i)", (int)looking_at.x,
                                     (int)looking_at.y, (int)looking_at.z,
-                                    get_at(looking_at))),
+                                    world.get_at(looking_at))),
         blockData[(std::size_t)cur_type].name,
         TextFormat("Y velocity: %.2f m/s (%.2f km/h)", vel_y * 20.0f,
                    vel_y * 20.0f * 3.6f),
@@ -1042,7 +898,7 @@ void draw2D() {
         TextFormat("Fast place/break: %s", ON_OFF(fast_place)),
         TextFormat("Smooth lighting: %s", ON_OFF(smoothLighting)),
         TextFormat("flying: %s", ON_OFF(flying)),
-        TextFormat("falling block count: %i", falling_blocks.size()),
+        TextFormat("falling block count: %i", world.falling_blocks.size()),
     };
 
     float fontSize = (float)GetScreenHeight() / 40;
@@ -1123,7 +979,7 @@ void init() {
     camera.projection = CAMERA_PERSPECTIVE;
 
     // load_world("pagoda", pCube);
-    load_world("ch64", player_cube);
+    world.load("ch64", player_cube);
 }
 
 void deInit() {
@@ -1236,14 +1092,12 @@ void pause() {
 void blockSelectionMenu() {
     EnableCursor();
 
-    bool run = true;
-
     int cols = 9, rows = (int)ceilf((float)BLOCK_TYPE_COUNT / (float)cols);
     int sb = GetScreenWidth() / 100;
 
     float scroll = 0;
 
-    while (!WindowShouldClose() && run) {
+    while (!WindowShouldClose()) {
         scroll += GetMouseWheelMove() * 50.0f;
         scroll = std::clamp(scroll, 0.0f, (float)GetScreenHeight() - 100);
         BeginDrawing();
@@ -1256,7 +1110,7 @@ void blockSelectionMenu() {
 
         float block_type_size = (float)(GetScreenHeight() / 13.5f);
 
-        uint8_t type_idx = 1;
+        uint8_t type_idx = 0;
         for (int row = 0; row < rows; row++) {
             for (int col = 0; col < cols; col++) {
                 type_idx++;
