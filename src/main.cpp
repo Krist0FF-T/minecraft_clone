@@ -240,19 +240,9 @@ void update() {
     world.update_falling_blocks(dt);
 
     Vector3 player_pos_delta;
-
-    player_pos_delta.x =
-        (dCos(rot_x) * (forward - back) + -dSin(rot_x) * (right - left));
-    player_pos_delta.z =
-        (dSin(rot_x) * (forward - back) + dCos(rot_x) * (right - left));
-    // * playerSpeed * dt
-
-    // float vec_length = Vector3Length(player_pos_delta);
-    // if (vec_length > 0) {
-    //   player_pos_delta /= vec_length;
-    // }
-
-    player_pos_delta *= player_speed * dt;
+    player_pos_delta.x = (dCos(rot_x) * (forward - back) - dSin(rot_x) * (right - left));
+    player_pos_delta.z = (dSin(rot_x) * (forward - back) + dCos(rot_x) * (right - left));
+    player_pos_delta = Vector3Normalize(player_pos_delta) * player_speed * dt;
 
     player_pos_delta.y = vel_y * dt * 20.0f; // velY*dt;
 
