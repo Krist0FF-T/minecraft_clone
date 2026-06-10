@@ -10,7 +10,7 @@ void World::update() {
     for (int y = 0; y < CHUNK_SIZE * CHUNK_COUNT; y++) {
     for (int x = 0; x < CHUNK_SIZE; x++) {
     for (int z = 0; x < CHUNK_SIZE; x++) {
-                update_block(x, y, z);
+        update_block({x, y, z});
     } } }
 
     for (size_t j = 0; j < falling_blocks.size(); j++) {
@@ -25,8 +25,8 @@ void World::update() {
     }
 }
 
-void World::update_block(int x, int y, int z) {
-    BlockType type = get_at(x, y, z);
+void World::update_block(Vector3i pos) {
+    BlockType type = get_at(pos);
 
     if (type == BlockType::Air) {
         return;
@@ -35,47 +35,43 @@ void World::update_block(int x, int y, int z) {
     switch (type) {
 
     case BlockType::Grass: {
-        if (get_at(x, y + 1, z) != BlockType::Air) {
-            set_at(x, y, z, BlockType::Dirt);
+        if (get_at({pos.x, pos.y + 1, pos.z}) != BlockType::Air) {
+            set_at(pos, BlockType::Dirt);
         }
 
         break;
     }
 
     case BlockType::Dirt: {
-        if (BlockType::Air != get_at(x, y + 1, z)) {
+        if (BlockType::Air != get_at({pos.x, pos.y + 1, pos.z})) {
             break;
         }
 
         int grass_neighbors = 0;
 
         for (int x2 = -1; x2 <= 1; x2++) {
-            for (int y2 = -1; y2 <= 1; y2++) {
-                for (int z2 = -1; z2 <= 1; z2++) {
-                    if (0 != x2 + z2 &&
-                        on_map(x + x2, y + y2, z + z2) &&
-                        BlockType::Grass ==
-                            get_at(x + x2, y + y2, z + z2)) {
-                        grass_neighbors++;
-                    }
-                }
+        for (int y2 = -1; y2 <= 1; y2++) {
+        for (int z2 = -1; z2 <= 1; z2++) {
+            Vector3i pos2 = pos + Vector3i{x2, y2, z2};
+            if (BlockType::Grass == get_at(pos2)) {
+                grass_neighbors++;
             }
-        }
+        }}}
 
         if (grass_neighbors > 0 && rand() % 10 == 0) {
-            set_at(x, y, z, BlockType::Grass);
+            set_at(pos, BlockType::Grass);
         }
 
         break;
     }
 
     case BlockType::Sand: {
-        if (get_at(x, y - 1, z) == BlockType::Air) {
-            set_at(x, y, z, BlockType::Air);
+        if (get_at({pos.x, pos.y - 1, pos.z}) == BlockType::Air) {
+            set_at(pos, BlockType::Air);
 
             falling_blocks.push_back((FallingBlock){
                 .vel = {0.0f, 0.0f, 0.0f},
-                .pos = (Vector3){(float)x, (float)y, (float)z},
+                .pos = pos.to_raylib(),
                 .type = type
             });
         }
@@ -92,13 +88,13 @@ void World::update_falling_blocks(float dt) {
     for (size_t j = 0; j < falling_blocks.size(); j++) {
         FallingBlock &fb = falling_blocks[j];
         Vector3 delta = fb.vel * dt * 20.0f;
-        if (get_at(fb.pos + delta) == BlockType::Air) {
+        if (get_at(Vector3i::from_raylib(fb.pos + delta)) == BlockType::Air) {
             fb.pos += delta;
         } else {
             if (fb.type == BlockType::WoolRed) {
-                set_at(fb.pos + delta, BlockType::Air);
+                set_at(Vector3i::from_raylib(fb.pos + delta), BlockType::Air);
             } else {
-                set_at(fb.pos, fb.type);
+                set_at(Vector3i::from_raylib(fb.pos), fb.type);
             }
             falling_blocks.erase(falling_blocks.begin() + j);
             j--;
@@ -106,153 +102,136 @@ void World::update_falling_blocks(float dt) {
     }
 }
 
-bool World::on_map(int x, int y, int z) {
-    return (0 <= x && x < CHUNK_SIZE && 0 <= y &&
-            y < CHUNK_SIZE * CHUNK_COUNT && 0 <= z && z < CHUNK_SIZE);
-}
-
-bool World::on_map(Vector3 vec) {
-    return on_map((int)vec.x, (int)vec.y, (int)vec.z);
+bool World::on_map(Vector3i pos) {
+    return (
+        0 <= pos.x && pos.x < CHUNK_SIZE &&
+        0 <= pos.y && pos.y < CHUNK_SIZE * CHUNK_COUNT &&
+        0 <= pos.z && pos.z < CHUNK_SIZE
+    );
 }
 
 int chunk_of(int y) {
     return (int)y / CHUNK_SIZE;
 }
 
-BlockType World::get_at(int x, int y, int z) {
-    if (on_map(x, y, z)) {
-        return m_blocks[chunk_of(y)][x][y % CHUNK_SIZE][z];
+BlockType World::get_at(Vector3i pos) {
+    if (on_map(pos)) {
+        return m_blocks[chunk_of(pos.y)][pos.x][pos.y % CHUNK_SIZE][pos.z];
     }
     return BlockType::Air;
 }
 
-BlockType World::get_at(Vector3 vec) {
-    return get_at((int)vec.x, (int)vec.y, (int)vec.z);
-}
-
-void World::set_at(int x, int y, int z, BlockType type) {
-    if (on_map(x, y, z)) {
-        m_blocks[chunk_of(y)][x][y % CHUNK_SIZE][z] = type;
+void World::set_at(Vector3i pos, BlockType type) {
+    if (on_map(pos)) {
+        m_blocks[chunk_of(pos.y)][pos.x][pos.y % CHUNK_SIZE][pos.z] = type;
     }
 }
 
-void World::set_at(Vector3 vec, BlockType type) {
-    set_at((int)vec.x, (int)vec.y, (int)vec.z, type);
+bool World::is_empty(Vector3i pos) {
+    return get_at(pos) == BlockType::Air;
 }
 
-bool World::is_empty(int x, int y, int z) {
-    return get_at(x, y, z) == BlockType::Air;
+Cube World::block_cube(Vector3i pos) {
+    return Cube{pos.to_raylib(), Vector3One()};
 }
 
-bool World::is_empty(Vector3 vec) {
-    return is_empty((int)vec.x, (int)vec.y, (int)vec.z);
-}
-
-Cube World::block_cube(int x, int y, int z) {
-    return Cube{{(float)x, (float)y, (float)z}, Vector3One()};
-}
-
-Cube World::block_cube(Vector3 pos) {
-    return Cube{pos, Vector3One()};
-}
-
-c4v World::genC4v(int x, int y, int z, int faceN) {
+c4v World::genC4v(Vector3i pos, int faceN) {
     bool top, bottom, left, right, topright, bottomright, topleft, bottomleft;
 
     switch (faceN) {
     case face_top: {
-        top = !is_empty(x, y + 1, z - 1);
-        bottom = !is_empty(x, y + 1, z + 1);
-        left = !is_empty(x - 1, y + 1, z);
-        right = !is_empty(x + 1, y + 1, z);
+        top = !is_empty(pos + Vector3i{0, 1, -1});
+        bottom = !is_empty(pos + Vector3i{0, 1, 1});
+        left = !is_empty(pos + Vector3i{-1, 1, 0});
+        right = !is_empty(pos + Vector3i{1, 1, 0});
 
-        topleft = !is_empty(x - 1, y + 1, z - 1);
-        topright = !is_empty(x + 1, y + 1, z - 1);
-        bottomleft = !is_empty(x - 1, y + 1, z + 1);
-        bottomright = !is_empty(x + 1, y + 1, z + 1);
+        topleft = !is_empty(pos + Vector3i{-1, 1, -1});
+        topright = !is_empty(pos + Vector3i{+1, 1, -1});
+        bottomleft = !is_empty(pos + Vector3i{-1, + 1, + 1});
+        bottomright = !is_empty(pos + Vector3i{1, 1, 1});
 
         break;
     }
 
     case face_bottom: {
-        top = !is_empty(x, y - 1, z - 1);
-        bottom = !is_empty(x, y - 1, z + 1);
-        left = !is_empty(x - 1, y - 1, z);
-        right = !is_empty(x + 1, y - 1, z);
+        top = !is_empty(pos + Vector3i{0, - 1, - 1});
+        bottom = !is_empty(pos + Vector3i{0, - 1, + 1});
+        left = !is_empty(pos + Vector3i{- 1, - 1, 0});
+        right = !is_empty(pos + Vector3i{+ 1, - 1, 0});
 
-        topleft = !is_empty(x - 1, y - 1, z - 1);
-        topright = !is_empty(x + 1, y - 1, z - 1);
-        bottomleft = !is_empty(x - 1, y - 1, z + 1);
-        bottomright = !is_empty(x + 1, y - 1, z + 1);
+        topleft = !is_empty(pos + Vector3i{- 1, - 1, - 1});
+        topright = !is_empty(pos + Vector3i{+ 1, - 1, - 1});
+        bottomleft = !is_empty(pos + Vector3i{- 1, - 1, + 1});
+        bottomright = !is_empty(pos + Vector3i{+ 1, - 1, + 1});
 
         break;
     }
 
     case face_left: {
 
-        top = !is_empty(x - 1, y + 1, z);
-        bottom = !is_empty(x - 1, y - 1, z);
+        top = !is_empty(pos + Vector3i{- 1, + 1, 0});
+        bottom = !is_empty(pos + Vector3i{- 1, - 1, 0});
 
-        left = !is_empty(x - 1, y, z - 1);
-        right = !is_empty(x - 1, y, z + 1);
+        left = !is_empty(pos + Vector3i{- 1, 0, - 1});
+        right = !is_empty(pos + Vector3i{- 1, 0, + 1});
 
-        topleft = !is_empty(x - 1, y + 1, z - 1);
-        topright = !is_empty(x - 1, y + 1, z + 1);
+        topleft = !is_empty(pos + Vector3i{- 1, + 1, - 1});
+        topright = !is_empty(pos + Vector3i{- 1, + 1, + 1});
 
-        bottomleft = !is_empty(x - 1, y - 1, z - 1);
-        bottomright = !is_empty(x - 1, y - 1, z + 1);
+        bottomleft = !is_empty(pos + Vector3i{- 1, - 1, - 1});
+        bottomright = !is_empty(pos + Vector3i{- 1, - 1, + 1});
 
         break;
     }
 
     case face_right: {
 
-        top = !is_empty(x + 1, y + 1, z);
-        bottom = !is_empty(x + 1, y - 1, z);
+        top = !is_empty(pos + Vector3i{+ 1, + 1, 0});
+        bottom = !is_empty(pos + Vector3i{+ 1, - 1, 0});
 
-        left = !is_empty(x + 1, y, z - 1);
-        right = !is_empty(x + 1, y, z + 1);
+        left = !is_empty(pos + Vector3i{+ 1, 0, - 1});
+        right = !is_empty(pos + Vector3i{+ 1, 0, + 1});
 
-        topleft = !is_empty(x + 1, y + 1, z - 1);
-        topright = !is_empty(x + 1, y + 1, z + 1);
+        topleft = !is_empty(pos + Vector3i{+ 1, + 1, - 1});
+        topright = !is_empty(pos + Vector3i{+ 1, + 1, + 1});
 
-        bottomleft = !is_empty(x + 1, y - 1, z - 1);
-        bottomright = !is_empty(x + 1, y - 1, z + 1);
+        bottomleft = !is_empty(pos + Vector3i{+ 1, - 1, - 1});
+        bottomright = !is_empty(pos + Vector3i{+ 1, - 1, + 1});
 
         break;
     }
 
-    // Z --
+    // --
     case face_front: {
 
-        top = !is_empty(x, y + 1, z - 1);
-        bottom = !is_empty(x, y - 1, z - 1);
+        top = !is_empty(pos + Vector3i{0, + 1, - 1});
+        bottom = !is_empty(pos + Vector3i{0, - 1, - 1});
 
-        left = !is_empty(x - 1, y, z - 1);
-        right = !is_empty(x + 1, y, z - 1);
+        left = !is_empty(pos + Vector3i{- 1, 0, - 1});
+        right = !is_empty(pos + Vector3i{+ 1, 0, - 1});
 
-        topleft = !is_empty(x - 1, y + 1, z - 1);
-        topright = !is_empty(x + 1, y + 1, z - 1);
+        topleft = !is_empty(pos + Vector3i{- 1, + 1, - 1});
+        topright = !is_empty(pos + Vector3i{+ 1, + 1, - 1});
 
-        bottomleft = !is_empty(x - 1, y - 1, z - 1);
-        bottomright = !is_empty(x + 1, y - 1, z - 1);
+        bottomleft = !is_empty(pos + Vector3i{- 1, - 1, - 1});
+        bottomright = !is_empty(pos + Vector3i{+ 1, - 1, - 1});
 
         break;
     }
 
-    // Z ++
+    // ++
     case face_back: {
-        top = !is_empty(x, y + 1, z + 1);
-        bottom = !is_empty(x, y - 1, z + 1);
+        top = !is_empty(pos + Vector3i{0, + 1, + 1});
+        bottom = !is_empty(pos + Vector3i{0, - 1, + 1});
 
-        left = !is_empty(x - 1, y, z + 1);
-        right = !is_empty(x + 1, y, z + 1);
+        left = !is_empty(pos + Vector3i{- 1, 0, + 1});
+        right = !is_empty(pos + Vector3i{+ 1, 0, + 1});
 
-        topleft = !is_empty(x - 1, y + 1, z + 1);
-        topright = !is_empty(x + 1, y + 1, z + 1);
+        topleft = !is_empty(pos + Vector3i{- 1, + 1, + 1});
+        topright = !is_empty(pos + Vector3i{+ 1, + 1, + 1});
 
-        bottomleft = !is_empty(x - 1, y - 1, z + 1);
-        bottomright = !is_empty(x + 1, y - 1, z + 1);
+        bottomleft = !is_empty(pos + Vector3i{- 1, - 1, + 1});
+        bottomright = !is_empty(pos + Vector3i{+ 1, - 1, + 1});
 
         break;
     }
@@ -280,8 +259,8 @@ c4v World::genC4v(int x, int y, int z, int faceN) {
     };
 }
 
-void World::gen_tree(int x, int y, int z) {
-    if (get_at(x, y, z) == BlockType::Grass) {
+void World::gen_tree(Vector3i pos) {
+    if (get_at(pos) == BlockType::Grass) {
         return;
     }
 
@@ -331,17 +310,18 @@ void World::gen_tree(int x, int y, int z) {
     for (int j = 0; j < width; j++) {
         for (int i = height - 1; i >= 0; i--) {
             for (int k = 0; k < length; k++) {
+                Vector3i pos2 = {pos.x + j - width / 2, pos.y + i, pos.z + k - length / 2};
                 if (treeBlocks[ind] != -1 &&
                     !(treeBlocks[ind] == -2 && rand() % 2 == 0) &&
-                    is_empty(x + j - width / 2, y + i, z + k - length / 2)) {
+                    is_empty(pos2)
+                ) {
                     BlockType type;
                     if (treeBlocks[ind] == -2) {
                         type = BlockType::Leaf;
                     } else {
                         type = uBlocks[treeBlocks[ind]];
                     }
-                    set_at(x + j - width / 2, y + i, z + k - length / 2,
-                           type); // treeBlocks[x*l*h + y*w + z]
+                    set_at(pos2, type);
                 }
 
                 ind++;
@@ -352,8 +332,8 @@ void World::gen_tree(int x, int y, int z) {
 
 void World::clear() {
     this->fill(
-        Vector3Zeros,
-        {(float)CHUNK_SIZE-1, (float)CHUNK_SIZE-1, (float)CHUNK_SIZE-1},
+        {0, 0, 0},
+        {CHUNK_SIZE - 1, CHUNK_SIZE - 1, CHUNK_SIZE - 1},
         BlockType::Air
     );
 }
@@ -387,9 +367,9 @@ int World::save(std::string fName, const Cube &pCube) {
     return 0;
 }
 
-void World::fill(Vector3 a, Vector3 b, BlockType block_type) {
-    Vector3 p1 { std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z) };
-    Vector3 p2 { std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z) };
+void World::fill(Vector3i a, Vector3i b, BlockType block_type) {
+    Vector3i p1 { std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z) };
+    Vector3i p2 { std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z) };
 
     int c, rY;
 
@@ -408,8 +388,9 @@ void World::replace(BlockType a, BlockType b) {
     for (int y = 0; y < CHUNK_COUNT*CHUNK_SIZE; y++) {
         for (int x = 0; x < CHUNK_SIZE; x++) {
             for (int z = 0; z < CHUNK_SIZE; z++)  {
-                if (get_at(x, y, z) == (BlockType) a) {
-                    set_at(x, y, z, (BlockType) b);
+                Vector3i pos {x, y, z};
+                if (get_at(pos) == (BlockType) a) {
+                    set_at(pos, (BlockType) b);
                 }
             }
         }

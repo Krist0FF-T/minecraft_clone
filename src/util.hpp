@@ -6,7 +6,6 @@
 
 #include <raylib.h>
 #include <raymath.h>
-#include <rlgl.h>
 
 #ifndef dCos
 #define dCos(x) (cosf(x * PI / 180.0f))
@@ -15,6 +14,19 @@
 #ifndef dSin
 #define dSin(x) (sinf(x * PI / 180.0f))
 #endif
+
+struct Vector3i {
+    int x, y, z;
+    Vector3 to_raylib() {
+        return {(float)x, (float)y, (float)z};
+    }
+    static Vector3i from_raylib(Vector3 vec) {
+        return {(int)std::round(vec.x), (int)std::round(vec.y), (int)std::round(vec.z)};
+    }
+    Vector3i operator+(Vector3i other) {
+        return {x + other.x, y + other.y, z + other.z};
+    }
+};
 
 std::vector<std::string> split_str(const std::string& str, char delimiter);
 
@@ -49,12 +61,6 @@ struct Cube {
         return {pos.x + size.x / 2, pos.y + size.y / 2, pos.z + size.z / 2};
     }
 
-    void setCenter(Vector3 center) {
-        pos.x = center.x - size.x * 0.5f;
-        pos.y = center.y - size.y * 0.5f;
-        pos.z = center.z - size.z * 0.5f;
-    }
-
     bool collide(Cube c2) {
 
         Vector3 tl = getTLF(), c2tl = c2.getTLF();
@@ -66,15 +72,7 @@ struct Cube {
                 tl.z < (c2tl.z + c2.size.z) && (tl.z + size.z) > c2tl.z);
     }
 
-    void draw(Color color) {
-        DrawCubeV(pos, size, color);
-    }
-
-    Cube movedCopy(float x, float y, float z) {
-        return Cube{Vector3Add(pos, {x, y, z}), size};
-    }
-
-    Cube movedCopyV(Vector3 delta) {
-        return Cube{Vector3Add(pos, delta), size};
+    Cube movedCopy(Vector3 delta) {
+        return Cube{pos + delta, size};
     }
 };

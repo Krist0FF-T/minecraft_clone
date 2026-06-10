@@ -26,30 +26,21 @@ public:
     void update_falling_blocks(float dt);
 
     void clear();
-    void fill(Vector3 a, Vector3 b, BlockType block_type);
+    void fill(Vector3i a, Vector3i b, BlockType block_type);
     void replace(BlockType a, BlockType b);
 
-    BlockType get_at(int x, int y, int z);
-    BlockType get_at(Vector3 vec);
+    BlockType get_at(Vector3i pos);
+    void set_at(Vector3i pos, BlockType type);
+    bool is_empty(Vector3i pos);
+    Cube block_cube(Vector3i pos);
 
-    void set_at(int x, int y, int z, BlockType type);
-    void set_at(Vector3 vec, BlockType type);
+    bool on_map(Vector3i pos);
 
-    bool is_empty(int x, int y, int z);
-    bool is_empty(Vector3 vec);
-
-    Cube block_cube(int x, int y, int z);
-    Cube block_cube(Vector3 pos);
-
-    bool on_map(int x, int y, int z);
-    bool on_map(Vector3 vec);
-
-    c4v genC4v(int x, int y, int z, int faceN);
-
-    void gen_tree(int x, int y, int z);
+    c4v genC4v(Vector3i pos, int faceN);
+    void gen_tree(Vector3i pos);
 
 private:
-    void update_block(int x, int y, int z);
+    void update_block(Vector3i pos);
 
     BlockType m_blocks[CHUNK_COUNT][CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
 
