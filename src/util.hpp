@@ -15,6 +15,10 @@
 #define dSin(x) (sinf(x * PI / 180.0f))
 #endif
 
+// because obv "/" and "%" don't do what I need them to
+int floor_div(int a, int b);
+int mod(int a, int b);
+
 struct Vector3i {
     int x, y, z;
     Vector3 to_raylib() {
@@ -23,10 +27,43 @@ struct Vector3i {
     static Vector3i from_raylib(Vector3 vec) {
         return {(int)std::round(vec.x), (int)std::round(vec.y), (int)std::round(vec.z)};
     }
-    Vector3i operator+(Vector3i other) {
+    Vector3i operator+(const Vector3i& other) const {
         return {x + other.x, y + other.y, z + other.z};
     }
+    Vector3i operator*(int m) const {
+        return {x*m, y*m, z*m};
+    }
+    Vector3i operator/(int d) const {
+        return {floor_div(x, d), floor_div(y, d), floor_div(z, d)};
+    }
+    Vector3i operator%(int d) const {
+        return {mod(x, d), mod(y, d), mod(z, d)};
+    }
+
+    bool operator==(const Vector3i& other) const
+    {
+        return x == other.x &&
+               y == other.y &&
+               z == other.z;
+    }
 };
+
+struct Vector3iHash {
+    void combine(size_t &seed, size_t hash) const {
+		hash += 0x9e3779b9 + (seed << 6) + (seed >> 2);
+		seed ^= hash;
+    }
+
+    size_t operator()(const Vector3i& vec) const {
+        size_t seed = 0;
+        std::hash<int> hasher;
+        combine(seed, hasher(vec.x));
+        combine(seed, hasher(vec.y));
+        combine(seed, hasher(vec.z));
+        return seed;
+    }
+};
+
 
 std::vector<std::string> split_str(const std::string& str, char delimiter);
 

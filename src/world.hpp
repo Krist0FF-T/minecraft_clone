@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_map>
 #include <vector>
 
 #include <raylib.h>
@@ -7,9 +8,7 @@
 #include "blocktypes.hpp"
 #include "util.hpp"
 
-// static const int CHUNK_COUNT = 100, CHUNK_SIZE = 32;
-static const int CHUNK_COUNT = 1;
-static const int CHUNK_SIZE = 64;
+static const int CHUNK_SIZE = 8;
 
 struct FallingBlock {
     Vector3 vel;
@@ -17,9 +16,29 @@ struct FallingBlock {
     BlockType type;
 };
 
+struct Chunk {
+    std::array<BlockType, CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE> blocks;
+
+    // TODO: mesh generation
+    // Mesh mesh;
+    // bool mesh_dirty;
+
+    Chunk() {
+        blocks.fill(BlockType::Air);
+    }
+
+    BlockType& operator[](Vector3i local) {
+        return blocks[local.x * CHUNK_SIZE * CHUNK_SIZE + local.y * CHUNK_SIZE + local.z];
+    }
+};
+
 class World {
 public:
     World();
+
+    void draw(const Camera& camera);
+    void draw_block(Vector3i pos, const Camera& camera);
+
     int load(std::string fName, Cube &pCube);
     int save(std::string fName, const Cube &pCube);
     void update();
@@ -36,13 +55,13 @@ public:
 
     bool on_map(Vector3i pos);
 
-    c4v genC4v(Vector3i pos, int faceN);
     void gen_tree(Vector3i pos);
 
 private:
+    c4v genC4v(Vector3i pos, int faceN);
     void update_block(Vector3i pos);
 
-    BlockType m_blocks[CHUNK_COUNT][CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
+    std::unordered_map<Vector3i, Chunk, Vector3iHash> m_chunks;
 
 public: // it's easier to have it as public for now
     std::vector<FallingBlock> falling_blocks;

@@ -1,6 +1,5 @@
 
 #include <algorithm>
-#include <cmath>
 #include <stdexcept>
 
 #include <raylib.h>
@@ -38,25 +37,26 @@ static const float DEF_FOV = 90.0f;
 static float cur_fov = DEF_FOV;
 
 static const float REACH_STEP = 0.01f;
-static float reach = 5.0f;
+static float reach = 10.0f;
+static bool block_found = false;
+static Vector3i looking_at = {0, 0, 0};
 
 static float dt;
 static const float TICK_TIME = 0.05f;
 static float tick_timer = 0.0f;
 
 static BlockType cur_type = BlockType::Grass;
+
 static int render_dist = 2;
 
 static bool able_to_jump = false;
-static bool flying = false;
+static bool flying = true;
 
 static bool fast_place = 0;
 static bool smoothLighting = true;
 
 static Camera3D camera;
 static Vector3 camera_direction;
-
-static Vector3i looking_at = {0, 0, 0};
 
 static const int N_SOUNDS = 2;
 static Sound sounds[N_SOUNDS];
@@ -92,7 +92,6 @@ void drawCrosshair(Color color) {
 
 std::string guiInputTxt(std::string displayText);
 
-// declaration of pause function
 void pause();
 void blockSelectionMenu();
 
@@ -103,34 +102,6 @@ bool blockCollidePlayer(int x, int y, int z, Vector3 p) {
             p.y < (float)(y + PLAYER_HEIGHT * 1.75f) &&
             p.z > (float)(z - PLAYER_WIDTH / 2) &&
             p.z < (float)(z + PLAYER_WIDTH / 2));
-}
-
-void place_player() {
-    bool placed = false;
-
-    while (!placed) {
-        int x = rand() % 32;
-        int z = rand() % 32;
-
-        for (int y = CHUNK_COUNT * CHUNK_SIZE - 1; y > -1 && !placed; y--) {
-            placed = true;
-            for (int a = 1; a < 3 && placed; a++) {
-                if (!world.is_empty({x, y + a, z})) {
-                    placed = false;
-                }
-            }
-
-            if (world.is_empty({x, y, z})) {
-                placed = false;
-            }
-
-            if (placed) {
-                player_cube.pos.x = x;
-                player_cube.pos.y = y + PLAYER_HEIGHT;
-                player_cube.pos.z = z;
-            }
-        }
-    }
 }
 
 void command_fill() {
@@ -172,11 +143,6 @@ void command_fill() {
         return;
     } catch (const std::out_of_range &e) {
         notify(e.what());
-        return;
-    }
-
-    if (!world.on_map(a) || !world.on_map(b)) {
-        notify("Not on map.");
         return;
     }
 
@@ -227,11 +193,6 @@ void update() {
     if (abs(vel_y) > 0.1f) {
         able_to_jump = false;
     }
-
-    // don't let the player fall too far
-    // if (pCube.pos.y < -10) {
-    //   flying = true;
-    // }
 
     if (flying) {
         vel_y = (up - down) * player_speed * TICK_TIME;
@@ -327,17 +288,18 @@ void update() {
     cur_fov = IsKeyDown(KEY_C) ? (DEF_FOV * 0.3f) : DEF_FOV;
     camera.fovy += dt * 20 * (cur_fov - camera.fovy);
 
-    Vector3i place_add {0, 0, 0};
+    Vector3i place_add {1, 0, 0};
+    block_found = false;
     for (float cur_rad = 0; cur_rad < reach + REACH_STEP; cur_rad += REACH_STEP) {
         Vector3 look_at_f = camera.position + camera_direction * cur_rad;
         looking_at = Vector3i::from_raylib(look_at_f);
 
         if (world.is_empty(looking_at)) {
-            looking_at.x = -1;
             continue;
         }
 
         // block found
+        block_found = true;
 
         float dx = look_at_f.x - looking_at.x;
         float dy = look_at_f.y - looking_at.y;
@@ -377,9 +339,7 @@ void update() {
         (fast_place ? IsKeyDown : IsKeyPressed)(KEY_U) ||
         (fast_place ? IsMouseButtonDown : IsMouseButtonPressed)(MOUSE_LEFT_BUTTON)
     );
-    if (action_break &&
-        !world.is_empty(looking_at) &&
-        world.on_map(looking_at) && world.on_map(looking_at)) {
+    if (action_break && block_found) {
         world.set_at(looking_at, BlockType::Air);
         PlaySound(sounds[SOUND_BREAK]);
     }
@@ -389,13 +349,7 @@ void update() {
         (fast_place ? IsMouseButtonDown : IsMouseButtonPressed)(MOUSE_RIGHT_BUTTON)
     );
     if (action_place && (flying || !player_cube.collide(world.block_cube(placeAt)))) {
-        if (world.on_map(placeAt) && world.is_empty(placeAt)) {
-            world.set_at(placeAt, cur_type);
-            // fallingBlocks.push_back({0, {placeAt.x, placeAt.y+0.5f,
-            // placeAt.z},
-            world.set_at(placeAt, cur_type);
-            PlaySound(sounds[SOUND_PLACE]);
-        } else if (looking_at.x == -1) {
+        if (!block_found) {
             Vector3 pos = player_cube.pos + player_cube.size / 2 + camera_direction * 2;
 
             world.falling_blocks.push_back((FallingBlock) {
@@ -403,10 +357,13 @@ void update() {
                 pos,
                 cur_type,
             });
+        } else if (world.on_map(placeAt)) {
+            world.set_at(placeAt, cur_type);
+            PlaySound(sounds[SOUND_PLACE]);
         }
     }
 
-    if (world.on_map(placeAt) && IsKeyPressed(KEY_I)) {
+    if (IsKeyPressed(KEY_I) && block_found ) {
         world.gen_tree(placeAt);
     }
 
@@ -422,7 +379,7 @@ void update() {
         blockSelectionMenu();
     }
 
-    if (IsKeyDown(KEY_Q) && looking_at.x != -1) {
+    if (IsKeyDown(KEY_Q) && block_found) {
         world.set_at(looking_at, cur_type);
     }
 
@@ -542,278 +499,19 @@ void update() {
     }
 }
 
-c4v getC4v(Vector3i pos, int faceN) {
-    return (smoothLighting ? world.genC4v(pos, faceN) : (c4v){1, 1, 1, 1});
-}
 
-void draw_block(Vector3i pos) {
-    if (world.is_empty(pos)) {
-        return;
-    }
-
-    static const float b_top = 1.0f, // top
-        b1 = 0.9f,                   // left, right
-        b2 = 0.8f,                   // front, back
-        b_bottom = 0.7f;             // bottom
-
-    static int lastT = -1, t = 0;
-    lastT = -1;
-
-    Faces faces = {
-        (camera.position.x < pos.x && world.is_empty(pos + Vector3i{-1, 0, 0})),
-        (camera.position.x > pos.x && world.is_empty(pos + Vector3i{+1, 0, 0})),
-        (camera.position.y < pos.y && world.is_empty(pos + Vector3i{0, -1, 0})),
-        (camera.position.y > pos.y && world.is_empty(pos + Vector3i{0, +1, 0})),
-        (camera.position.z < pos.z && world.is_empty(pos + Vector3i{0, 0, -1})),
-        (camera.position.z > pos.z && world.is_empty(pos + Vector3i{0, 0, +1})),
-    };
-
-    if (!faces.back && !faces.front && !faces.left && !faces.right &&
-        !faces.top && !faces.bottom) {
-        return;
-    }
-
-    uint8_t type_idx = (uint8_t)world.get_at(pos);
-    auto sides = blockData[type_idx].sides;
-
-    // Top Face
-    if (faces.top) {
-        t = block_textures[sides[0]].id;
-        if (lastT != t) {
-            rlSetTexture(t);
-            lastT = t;
-        }
-        c4v vc = getC4v(pos, face_top);
-
-        rlNormal3f(0.0f, 1.0f, 0.0f);
-
-        // Top Left of the Quad
-        color4ubGF(vc.tl * b_top);
-        rlTexCoord2f(0.0f, 0.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f);
-
-        // Bottom Left Of The Quad
-        color4ubGF(vc.br * b_top);
-        rlTexCoord2f(0.0f, 1.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z + 0.5f);
-
-        // Bottom Right Of The Quad
-        color4ubGF(vc.tr * b_top);
-        rlTexCoord2f(1.0f, 1.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z + 0.5f);
-
-        // Top Right Of The Quad
-        color4ubGF(vc.bl * b_top);
-        rlTexCoord2f(1.0f, 0.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z - 0.5f);
-    }
-
-    // Right face
-    t = block_textures[sides[1]].id;
-    if (t != lastT &&
-        (faces.right || faces.left || faces.back || faces.front)) {
-        rlSetTexture(t);
-        lastT = t;
-    }
-
-    if (faces.right) {
-        rlNormal3f(1.0f, 0.0f, 0.0f);
-
-        c4v vc = getC4v(pos, face_right);
-
-        // Bottom Right Of The Texture and Quad
-        color4ubGF(vc.br * b1);
-        rlTexCoord2f(1.0f, 1.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f);
-
-        // Top Right Of The Texture and Quad
-        color4ubGF(vc.tl * b1);
-        rlTexCoord2f(1.0f, 0.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z - 0.5f);
-
-        // Top Left Of The Texture and Quad
-        color4ubGF(vc.bl * b1);
-        rlTexCoord2f(0.0f, 0.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z + 0.5f);
-
-        // Bottom Left Of The Texture and Quad
-        color4ubGF(vc.tr * b1);
-        rlTexCoord2f(0.0f, 1.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z + 0.5f);
-    }
-
-    // Left Face
-    if (faces.left) {
-        rlNormal3f(-1.0f, 0.0f, 0.0f);
-
-        c4v vc = getC4v(pos, face_left);
-
-        // Bottom Left Of The Texture and Quad
-        color4ubGF(vc.br * b1);
-        rlTexCoord2f(0.0f, 1.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f);
-
-        // Bottom Right Of The Texture and Quad
-        color4ubGF(vc.tr * b1);
-        rlTexCoord2f(1.0f, 1.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f);
-
-        // Top Right Of The Texture and Quad
-        color4ubGF(vc.bl * b1);
-        rlTexCoord2f(1.0f, 0.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z + 0.5f);
-
-        // Top Left Of The Texture and Quad
-        color4ubGF(vc.tl * b1);
-        rlTexCoord2f(0.0f, 0.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f);
-    }
-
-    // Front Face
-    if (faces.back) {
-        // color4ubG(c*b2, 255, 0);
-        rlNormal3f(0.0f, 0.0f, 1.0f); // Normal Pointing Towards Viewer
-
-        c4v vc = getC4v(pos, face_back);
-
-        // Bottom Left Of The Texture and Quad
-        color4ubGF(vc.br * b2);
-        rlTexCoord2f(0.0f, 1.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f);
-
-        // Bottom Right Of The Texture and Quad
-        color4ubGF(vc.tr * b2);
-        rlTexCoord2f(1.0f, 1.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z + 0.5f);
-
-        // Top Right Of The Texture and Quad
-        color4ubGF(vc.bl * b2);
-        rlTexCoord2f(1.0f, 0.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z + 0.5f);
-
-        // Top Left Of The Texture and Quad
-        color4ubGF(vc.tl * b2);
-        rlTexCoord2f(0.0f, 0.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z + 0.5f);
-    }
-
-    // Back Face
-    if (faces.front) {
-        // color4ubG(c*b2, 255, 0);
-        // rlNormal3f(0.0f, 0.0f, - 1.0f);                  // Normal
-        // Pointing Away From Viewer
-
-        c4v vc = getC4v(pos, face_front);
-
-        // Bottom Right Of The Texture and Quad
-        color4ubGF(vc.br * b2);
-        rlTexCoord2f(1.0f, 1.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f);
-
-        // Top Right Of The Texture and Quad
-        color4ubGF(vc.tl * b2);
-        rlTexCoord2f(1.0f, 0.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f);
-
-        // Top Left Of The Texture and Quad
-        color4ubGF(vc.bl * b2);
-        rlTexCoord2f(0.0f, 0.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z - 0.5f);
-
-        // Bottom Left Of The Texture and Quad
-        color4ubGF(vc.tr * b2);
-        rlTexCoord2f(0.0f, 1.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f);
-    }
-
-    // Bottom Face
-    if (faces.bottom) {
-        t = block_textures[sides[2]].id;
-        if (lastT != t) {
-            rlSetTexture(t);
-            lastT = t;
-        }
-
-        rlNormal3f(0.0f, -1.0f, 0.0f);
-
-        // Top Right Of The Texture and Quad
-        c4v vc = getC4v(pos, face_bottom);
-        color4ubGF(vc.tl * b_bottom);
-        rlTexCoord2f(1.0f, 0.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f);
-
-        // Top Left Of The Texture and Quad
-        color4ubGF(vc.bl * b_bottom);
-        rlTexCoord2f(0.0f, 0.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f);
-
-        // Bottom Left Of The Texture and Quad
-        color4ubGF(vc.tr * b_bottom);
-        rlTexCoord2f(0.0f, 1.0f);
-        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z + 0.5f);
-
-        // Bottom Right Of The Texture and Quad
-        color4ubGF(vc.br * b_bottom);
-        rlTexCoord2f(1.0f, 1.0f);
-        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f);
-    }
-}
 
 void draw3D() {
     BeginMode3D(camera);
 
-    int oldSeed = rand();
+    world.draw(camera);
 
-    int cc = (int)round(camera.position.y / CHUNK_SIZE);
-
-    bool lookUp = (rot_y < 90.0f);
-
-    // minimum
-    int k1 = lookUp ? std::max(cc - 1, 0) : std::max(cc - render_dist, 0);
-    // maximum
-    int k2 = lookUp ? std::min(cc + render_dist, CHUNK_COUNT - 1)
-                    : std::min(cc, CHUNK_COUNT - 1);
-
-    // rlCheckRenderBatchLimit((blockCount + fallingBlocks.size())*3);
-    rlPushMatrix();
-    rlBegin(RL_QUADS);
-
-    for (FallingBlock& fb : world.falling_blocks) {
-        if (abs(fb.pos.y - camera.position.y) > render_dist * CHUNK_SIZE) {
-            continue;
-        }
-
-        Faces f{
-            camera.position.x<fb.pos.x, camera.position.x> fb.pos.x,
-            camera.position.y<fb.pos.y, camera.position.y> fb.pos.y,
-            camera.position.z<fb.pos.z, camera.position.z> fb.pos.z,
-        };
-
-        drawCubeTextureFaces(fb.pos, f, fb.type);
-    }
-
-    for (int chunk = k1; chunk < k2 + 1; chunk++) {
-        for (int i = 0; i < CHUNK_SIZE; i++) {
-            int y = chunk * CHUNK_SIZE + i;
-            for (int x = 0; x < CHUNK_SIZE; x++) {
-                for (int z = 0; z < CHUNK_SIZE; z++) {
-                    draw_block({x, y, z});
-                }
-            }
-        }
-    }
-
-    rlEnd();
-    rlPopMatrix();
-
-    if (world.on_map(looking_at)) {
+    if (block_found) {
         Color c = BLACK; // ColorFromHSV((float)GetTime()*20.0f, 1.0f, 1.0f);
         // DrawCube(lookAt, 1,1,1, c);
         float las = 1.05f;
         DrawCubeWiresV(looking_at.to_raylib(), {las, las, las}, c);
     }
-
-    SetRandomSeed(oldSeed);
 
     EndMode3D();
 }
@@ -826,11 +524,10 @@ void draw2D() {
         TextFormat("xyz: %.1f %.1f %.1f", camera.position.x, camera.position.y,
                    camera.position.z),
         TextFormat("looking at: %s",
-                   (looking_at.x == -1)
-                       ? "----"
-                       : TextFormat("%i, %i, %i (%i)", (int)looking_at.x,
-                                    (int)looking_at.y, (int)looking_at.z,
-                                    world.get_at(looking_at))),
+                   (!block_found) ? "----"
+                                  : TextFormat("%i, %i, %i (%i)", looking_at.x,
+                                               looking_at.y, looking_at.z,
+                                               world.get_at(looking_at))),
         blockData[(std::size_t)cur_type].name,
         TextFormat("Y velocity: %.2f m/s (%.2f km/h)", vel_y * 20.0f,
                    vel_y * 20.0f * 3.6f),
@@ -852,7 +549,7 @@ void draw2D() {
     for (size_t i = 0; i < notifications.size(); i++) {
         int i2 = notifications.size() - 1 - i;
         unsigned char a = (i == 0)
-            ? (unsigned char)(int)(std::clamp(notification_cooldown, 0.0f,
+            ? (unsigned char)(std::clamp(notification_cooldown, 0.0f,
                                               1.0f) *
                                    255.0f)
             : 255;
@@ -896,6 +593,8 @@ void draw() {
 }
 
 void init() {
+    SetTraceLogLevel(LOG_DEBUG);
+
     InitWindow(1280, 720, "Game");
 
     SetExitKey(KEY_F4);
@@ -912,14 +611,9 @@ void init() {
         sounds[i] = LoadSound(TextFormat("sound/%s.wav", soundNames[i]));
     }
 
-    camera.position = (Vector3){CHUNK_SIZE / 2.0f, 20.0f, CHUNK_SIZE / 2.0f};
-    camera.target = (Vector3){0.0f, 0.0f, 0.0f};
+    camera.projection = CAMERA_PERSPECTIVE;
     camera.up = (Vector3){0.0f, 1.0f, 0.0f};
     camera.fovy = DEF_FOV;
-    camera.projection = CAMERA_PERSPECTIVE;
-
-    // load_world("pagoda", pCube);
-    world.load("ch64", player_cube);
 }
 
 void deInit() {
@@ -1102,6 +796,10 @@ void blockSelectionMenu() {
 
         if (IsKeyPressed(KEY_E)) {
             break;
+        }
+
+        if (IsKeyPressed(KEY_TAB)) {
+            cur_type = (BlockType)(((int)cur_type + 1) % BLOCK_TYPE_COUNT);
         }
     }
 

@@ -1,5 +1,20 @@
 #include "util.hpp"
 
+int floor_div(int a, int b) {
+    int q = a / b;
+
+    // adjust down if signs differ and not divisible
+    if ((a ^ b) < 0 && a % b != 0){
+        q--;
+    }
+
+    return q;
+}
+
+int mod(int a, int b) {
+    return ((a % b) + b) % b;
+}
+
 std::vector<std::string> split_str(const std::string& str, char delimiter) {
     std::vector<std::string> strVec = {};
     std::string nStr = "";

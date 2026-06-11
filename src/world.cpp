@@ -2,16 +2,26 @@
 
 #include <fstream>
 
-#include "blocktypes.hpp"
+#include <raylib.h>
+#include <rlgl.h>
 
-World::World() {}
+#include "blocktypes.hpp"
+#include "draw.hpp"
+#include "src/util.hpp"
+
+World::World() {
+    clear();
+    fill({-16, 0, -16}, {15, 0, 15}, BlockType::Grass);
+}
 
 void World::update() {
-    for (int y = 0; y < CHUNK_SIZE * CHUNK_COUNT; y++) {
-    for (int x = 0; x < CHUNK_SIZE; x++) {
-    for (int z = 0; x < CHUNK_SIZE; x++) {
-        update_block({x, y, z});
-    } } }
+    for (auto it = m_chunks.begin(); it != m_chunks.end(); it++) {
+        for (int y = 0; y < CHUNK_SIZE; y++) {
+        for (int x = 0; x < CHUNK_SIZE; x++) {
+        for (int z = 0; z < CHUNK_SIZE; z++) {
+            update_block(it->first*CHUNK_SIZE + Vector3i {x, y, z});
+        } } }
+    }
 
     for (size_t j = 0; j < falling_blocks.size(); j++) {
         FallingBlock &fb = falling_blocks[j];
@@ -103,28 +113,23 @@ void World::update_falling_blocks(float dt) {
 }
 
 bool World::on_map(Vector3i pos) {
-    return (
-        0 <= pos.x && pos.x < CHUNK_SIZE &&
-        0 <= pos.y && pos.y < CHUNK_SIZE * CHUNK_COUNT &&
-        0 <= pos.z && pos.z < CHUNK_SIZE
-    );
-}
-
-int chunk_of(int y) {
-    return (int)y / CHUNK_SIZE;
+    return m_chunks.find(pos / CHUNK_SIZE) != m_chunks.end();
 }
 
 BlockType World::get_at(Vector3i pos) {
-    if (on_map(pos)) {
-        return m_blocks[chunk_of(pos.y)][pos.x][pos.y % CHUNK_SIZE][pos.z];
+    if (!on_map(pos)) {
+        return BlockType::Air;
     }
-    return BlockType::Air;
+
+    return m_chunks[pos / CHUNK_SIZE][pos % CHUNK_SIZE];
 }
 
 void World::set_at(Vector3i pos, BlockType type) {
-    if (on_map(pos)) {
-        m_blocks[chunk_of(pos.y)][pos.x][pos.y % CHUNK_SIZE][pos.z] = type;
+    if (!on_map(pos)) {
+        m_chunks[pos / CHUNK_SIZE] = Chunk();
     }
+
+    m_chunks[pos / CHUNK_SIZE][pos % CHUNK_SIZE] = type;
 }
 
 bool World::is_empty(Vector3i pos) {
@@ -331,97 +336,368 @@ void World::gen_tree(Vector3i pos) {
 }
 
 void World::clear() {
-    this->fill(
-        {0, 0, 0},
-        {CHUNK_SIZE - 1, CHUNK_SIZE - 1, CHUNK_SIZE - 1},
-        BlockType::Air
-    );
-}
-
-int World::save(std::string fName, const Cube &pCube) {
-    std::ofstream output_data;
-    output_data.open("worlds/" + fName + ".save");
-    if (!output_data) {
-        return -1;
-    }
-
-    int16_t pos[3]{
-        (int16_t)(pCube.pos.x * 10.0f),
-        (int16_t)(pCube.pos.y * 10.0f),
-        (int16_t)(pCube.pos.z * 10.0f),
-    };
-
-    output_data.write(reinterpret_cast<const char *>(pos), sizeof(int16_t) * 3);
-
-    for (int i = 0; i < CHUNK_COUNT; i++) {
-        for (int x = 0; x < CHUNK_SIZE; x++) {
-            for (int y = 0; y < CHUNK_SIZE; y++) {
-                output_data.write(
-                    reinterpret_cast<const char *>(m_blocks[i][x][y]),
-                    sizeof(uint8_t) * CHUNK_SIZE);
-            }
-        }
-    }
-
-    output_data.close();
-    return 0;
+    m_chunks.clear();
+    falling_blocks.clear();
 }
 
 void World::fill(Vector3i a, Vector3i b, BlockType block_type) {
     Vector3i p1 { std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z) };
     Vector3i p2 { std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z) };
 
-    int c, rY;
-
-    for (int x = (int)p1.x; x < (int)p2.x + 1; x++) {
-        for (int y = (int)p1.y; y < (int)p2.y + 1; y++) {
-            c = (int)(y / CHUNK_SIZE);
-            rY = (y % CHUNK_SIZE);
-            for (int z = (int)p1.z; z < (int)p2.z + 1; z++) {
-                m_blocks[c][x][rY][z] = block_type;
-            }
-        }
-    }
+    for (int x = p1.x; x <= p2.x; x++) {
+    for (int y = p1.y; y <= p2.y; y++) {
+    for (int z = p1.z; z <= p2.z; z++) {
+        set_at({x, y, z}, block_type);
+    } } }
 }
 
 void World::replace(BlockType a, BlockType b) {
-    for (int y = 0; y < CHUNK_COUNT*CHUNK_SIZE; y++) {
+    for (auto it = m_chunks.begin(); it != m_chunks.end(); it++) {
+        for (int y = 0; y < CHUNK_SIZE; y++) {
         for (int x = 0; x < CHUNK_SIZE; x++) {
-            for (int z = 0; z < CHUNK_SIZE; z++)  {
-                Vector3i pos {x, y, z};
-                if (get_at(pos) == (BlockType) a) {
-                    set_at(pos, (BlockType) b);
-                }
+        for (int z = 0; z < CHUNK_SIZE; z++)  {
+            Vector3i pos = it->first*CHUNK_SIZE + Vector3i {x, y, z};
+            if (get_at(pos) == (BlockType) a) {
+                set_at(pos, (BlockType) b);
             }
-        }
+        } } }
     }
 }
 
-int World::load(std::string fName, Cube &pCube) {
+int World::load(std::string file_name, Cube &player_cube) {
     std::ifstream input_data;
-    input_data.open("worlds/" + fName + ".save");
+    input_data.open("worlds/" + file_name + ".save");
 
     if (!input_data) {
         return -1;
     }
 
     falling_blocks.clear();
-    int16_t pos[3];
-    input_data.read(reinterpret_cast<char *>(pos), sizeof(int16_t) * 3);
-    pCube.pos.x = (float)((int)pos[0] * 0.1f);
-    pCube.pos.y = (float)((int)pos[1] * 0.1f);
-    pCube.pos.z = (float)((int)pos[2] * 0.1f);
+    m_chunks.clear();
 
-    for (int chunk = 0; chunk < CHUNK_COUNT; chunk++) {
+    printf("reading player pos\n");
+    Vector3i player_pos;
+    input_data.read(reinterpret_cast<char *>(&player_pos), sizeof(player_pos));
+
+    printf("reading chunk count\n");
+    uint32_t chunk_count;
+    input_data.read(reinterpret_cast<char *>(&chunk_count), sizeof(chunk_count));
+    printf("%i chunks\n", chunk_count);
+
+    printf("reading chunks\n");
+    for (int chunk_idx = 0; chunk_idx < chunk_count; chunk_idx++) {
+        Vector3i chunk_pos;
+        input_data.read(reinterpret_cast<char*>(&chunk_pos), sizeof(chunk_pos));
+        printf("idx=%i, pos=(%i, %i, %i)\n", chunk_idx, chunk_pos.x, chunk_pos.y, chunk_pos.z);
+
+        Chunk chunk;
+
         for (int x = 0; x < CHUNK_SIZE; x++) {
+            printf("row %i\n", x);
             for (int y = 0; y < CHUNK_SIZE; y++) {
-                input_data.read(reinterpret_cast<char *>(m_blocks[chunk][x][y]),
-                                sizeof(uint8_t) * CHUNK_SIZE);
+                size_t idx = x * CHUNK_SIZE*CHUNK_SIZE + y * CHUNK_SIZE;
+                input_data.read(
+                    reinterpret_cast<char *>(&chunk.blocks[idx]),
+                    sizeof(BlockType) * CHUNK_SIZE
+                );
             }
         }
+
+        m_chunks[chunk_pos] = chunk;
     }
 
     input_data.close();
     return 0;
 }
 
+int World::save(std::string file_name, const Cube &player_cube) {
+    std::ofstream output_data;
+    output_data.open("worlds/" + file_name + ".save");
+    if (!output_data) {
+        return -1;
+    }
+
+    Vector3i player_pos = Vector3i::from_raylib(player_cube.pos);
+
+    TraceLog(LOG_DEBUG, "saving world %s", file_name.c_str());
+
+    TraceLog(LOG_DEBUG, "(saving) player pos x=%i, y=%i, z=%i", player_pos.x, player_pos.y, player_pos.z);
+    output_data.write(reinterpret_cast<const char *>(&player_pos), sizeof(player_pos));
+
+    std::uint32_t chunk_count = m_chunks.size();
+    TraceLog(LOG_DEBUG, "(saving) chunk count %i", chunk_count);
+    output_data.write(reinterpret_cast<const char*>(&chunk_count), sizeof(chunk_count));
+
+    TraceLog(LOG_DEBUG, "(saving) writing %i chunks", chunk_count);
+    for (auto it = m_chunks.begin(); it != m_chunks.end(); it++) {
+        output_data.write(reinterpret_cast<const char*>(&it->first), sizeof(Vector3i));
+        for (int x = 0; x < CHUNK_SIZE; x++) {
+            for (int y = 0; y < CHUNK_SIZE; y++) {
+                size_t idx = x * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE;
+                output_data.write(
+                    reinterpret_cast<const char *>(&it->second.blocks[idx]),
+                    sizeof(uint8_t) * CHUNK_SIZE
+                );
+            }
+        }
+    }
+    output_data.close();
+
+    TraceLog(LOG_DEBUG, "world saved");
+    return 0;
+}
+
+void World::draw(const Camera& camera) {
+    // rlCheckRenderBatchLimit((blockCount + fallingBlocks.size())*3);
+
+    rlPushMatrix();
+    rlBegin(RL_QUADS);
+    for (FallingBlock& fb : falling_blocks) {
+        Faces f{
+            camera.position.x<fb.pos.x, camera.position.x> fb.pos.x,
+            camera.position.y<fb.pos.y, camera.position.y> fb.pos.y,
+            camera.position.z<fb.pos.z, camera.position.z> fb.pos.z,
+        };
+
+        drawCubeTextureFaces(fb.pos, f, fb.type);
+    }
+    rlEnd();
+    rlPopMatrix();
+
+    for (auto it = m_chunks.begin(); it != m_chunks.end(); it++) {
+        Vector3 size = {CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE};
+        DrawCubeWiresV((it->first*CHUNK_SIZE).to_raylib() + size/2 - Vector3Ones/2, size, BLACK);
+
+        if (IsKeyDown(KEY_TAB))
+            continue;
+
+        rlPushMatrix();
+        rlBegin(RL_QUADS);
+        for (int y = 0; y < CHUNK_SIZE; y++) {
+        for (int x = 0; x < CHUNK_SIZE; x++) {
+        for (int z = 0; z < CHUNK_SIZE; z++) {
+            draw_block(
+                it->first*CHUNK_SIZE + Vector3i {x, y, z},
+                camera
+            );
+        } } }
+        rlEnd();
+        rlPopMatrix();
+    }
+
+}
+
+void World::draw_block(Vector3i pos, const Camera& camera) {
+    if (is_empty(pos)) {
+        return;
+    }
+
+    // printf("e\n");
+
+    static const float b_top = 1.0f, // top
+        b1 = 0.9f,                   // left, right
+        b2 = 0.8f,                   // front, back
+        b_bottom = 0.7f;             // bottom
+
+    static int lastT = -1, t = 0;
+    lastT = -1;
+
+    Faces faces = {
+        (camera.position.x < pos.x && is_empty(pos + Vector3i{-1, 0, 0})),
+        (camera.position.x > pos.x && is_empty(pos + Vector3i{+1, 0, 0})),
+        (camera.position.y < pos.y && is_empty(pos + Vector3i{0, -1, 0})),
+        (camera.position.y > pos.y && is_empty(pos + Vector3i{0, +1, 0})),
+        (camera.position.z < pos.z && is_empty(pos + Vector3i{0, 0, -1})),
+        (camera.position.z > pos.z && is_empty(pos + Vector3i{0, 0, +1})),
+    };
+
+    if (!faces.back && !faces.front && !faces.left && !faces.right &&
+        !faces.top && !faces.bottom) {
+        return;
+    }
+
+    uint8_t type_idx = (uint8_t)get_at(pos);
+    auto sides = blockData[type_idx].sides;
+
+    // Top Face
+    if (faces.top) {
+        t = block_textures[sides[0]].id;
+        if (lastT != t) {
+            rlSetTexture(t);
+            lastT = t;
+        }
+        c4v vc = genC4v(pos, face_top);
+
+        rlNormal3f(0.0f, 1.0f, 0.0f);
+
+        // Top Left of the Quad
+        color4ubGF(vc.tl * b_top);
+        rlTexCoord2f(0.0f, 0.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f);
+
+        // Bottom Left Of The Quad
+        color4ubGF(vc.br * b_top);
+        rlTexCoord2f(0.0f, 1.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z + 0.5f);
+
+        // Bottom Right Of The Quad
+        color4ubGF(vc.tr * b_top);
+        rlTexCoord2f(1.0f, 1.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z + 0.5f);
+
+        // Top Right Of The Quad
+        color4ubGF(vc.bl * b_top);
+        rlTexCoord2f(1.0f, 0.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z - 0.5f);
+    }
+
+    // Right face
+    t = block_textures[sides[1]].id;
+    if (t != lastT &&
+        (faces.right || faces.left || faces.back || faces.front)) {
+        rlSetTexture(t);
+        lastT = t;
+    }
+
+    if (faces.right) {
+        rlNormal3f(1.0f, 0.0f, 0.0f);
+
+        c4v vc = genC4v(pos, face_right);
+
+        // Bottom Right Of The Texture and Quad
+        color4ubGF(vc.br * b1);
+        rlTexCoord2f(1.0f, 1.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f);
+
+        // Top Right Of The Texture and Quad
+        color4ubGF(vc.tl * b1);
+        rlTexCoord2f(1.0f, 0.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z - 0.5f);
+
+        // Top Left Of The Texture and Quad
+        color4ubGF(vc.bl * b1);
+        rlTexCoord2f(0.0f, 0.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z + 0.5f);
+
+        // Bottom Left Of The Texture and Quad
+        color4ubGF(vc.tr * b1);
+        rlTexCoord2f(0.0f, 1.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z + 0.5f);
+    }
+
+    // Left Face
+    if (faces.left) {
+        rlNormal3f(-1.0f, 0.0f, 0.0f);
+
+        c4v vc = genC4v(pos, face_left);
+
+        // Bottom Left Of The Texture and Quad
+        color4ubGF(vc.br * b1);
+        rlTexCoord2f(0.0f, 1.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f);
+
+        // Bottom Right Of The Texture and Quad
+        color4ubGF(vc.tr * b1);
+        rlTexCoord2f(1.0f, 1.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f);
+
+        // Top Right Of The Texture and Quad
+        color4ubGF(vc.bl * b1);
+        rlTexCoord2f(1.0f, 0.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z + 0.5f);
+
+        // Top Left Of The Texture and Quad
+        color4ubGF(vc.tl * b1);
+        rlTexCoord2f(0.0f, 0.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f);
+    }
+
+    // Front Face
+    if (faces.back) {
+        // color4ubG(c*b2, 255, 0);
+        rlNormal3f(0.0f, 0.0f, 1.0f); // Normal Pointing Towards Viewer
+
+        c4v vc = genC4v(pos, face_back);
+
+        // Bottom Left Of The Texture and Quad
+        color4ubGF(vc.br * b2);
+        rlTexCoord2f(0.0f, 1.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f);
+
+        // Bottom Right Of The Texture and Quad
+        color4ubGF(vc.tr * b2);
+        rlTexCoord2f(1.0f, 1.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z + 0.5f);
+
+        // Top Right Of The Texture and Quad
+        color4ubGF(vc.bl * b2);
+        rlTexCoord2f(1.0f, 0.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z + 0.5f);
+
+        // Top Left Of The Texture and Quad
+        color4ubGF(vc.tl * b2);
+        rlTexCoord2f(0.0f, 0.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z + 0.5f);
+    }
+
+    // Back Face
+    if (faces.front) {
+        // color4ubG(c*b2, 255, 0);
+        // rlNormal3f(0.0f, 0.0f, - 1.0f);                  // Normal
+        // Pointing Away From Viewer
+
+        c4v vc = genC4v(pos, face_front);
+
+        // Bottom Right Of The Texture and Quad
+        color4ubGF(vc.br * b2);
+        rlTexCoord2f(1.0f, 1.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f);
+
+        // Top Right Of The Texture and Quad
+        color4ubGF(vc.tl * b2);
+        rlTexCoord2f(1.0f, 0.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f);
+
+        // Top Left Of The Texture and Quad
+        color4ubGF(vc.bl * b2);
+        rlTexCoord2f(0.0f, 0.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y + 0.5f, pos.z - 0.5f);
+
+        // Bottom Left Of The Texture and Quad
+        color4ubGF(vc.tr * b2);
+        rlTexCoord2f(0.0f, 1.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f);
+    }
+
+    // Bottom Face
+    if (faces.bottom) {
+        t = block_textures[sides[2]].id;
+        if (lastT != t) {
+            rlSetTexture(t);
+            lastT = t;
+        }
+
+        rlNormal3f(0.0f, -1.0f, 0.0f);
+
+        // Top Right Of The Texture and Quad
+        c4v vc = genC4v(pos, face_bottom);
+        color4ubGF(vc.tl * b_bottom);
+        rlTexCoord2f(1.0f, 0.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f);
+
+        // Top Left Of The Texture and Quad
+        color4ubGF(vc.bl * b_bottom);
+        rlTexCoord2f(0.0f, 0.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f);
+
+        // Bottom Left Of The Texture and Quad
+        color4ubGF(vc.tr * b_bottom);
+        rlTexCoord2f(0.0f, 1.0f);
+        rlVertex3f(pos.x + 0.5f, pos.y - 0.5f, pos.z + 0.5f);
+
+        // Bottom Right Of The Texture and Quad
+        color4ubGF(vc.br * b_bottom);
+        rlTexCoord2f(1.0f, 1.0f);
+        rlVertex3f(pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f);
+    }
+}
