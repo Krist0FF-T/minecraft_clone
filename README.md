@@ -2,7 +2,9 @@
 # MineCraft clone
 A simple MineCraft clone written in C++ using [Raylib](https://www.raylib.com/).
 
+
 # Features
+Currently implemented:
 - loading and saving worlds
 - placing and breaking blocks
 - throwing blocks
@@ -10,6 +12,22 @@ A simple MineCraft clone written in C++ using [Raylib](https://www.raylib.com/).
 - ambient occlusion (smooth lighting)
 - zooming (animated)
 - keystrokes (in the top right corner)
+
+Planned features:
+- WorldEdit-like editing built-in
+- Turing-complete redstone-inspired electronics
+    - use an internal model instead of propagating block-by-block each tick
+
+Planned internal improvements:
+- faster rendering
+    - texture atlas generation
+    - chunk mesh generation
+    - re-implement render distance
+- better voxel ray traversal algorithm (not fixed steps)
+    - (basically faster and more accurate block selection)
+- menu system like the one implemented in SuperMupla
+- move all global variables to a game state structure
+
 
 # Controls
 - WASD to move around
@@ -24,6 +42,7 @@ A simple MineCraft clone written in C++ using [Raylib](https://www.raylib.com/).
     - throws it if no block is selected
 - ctrl+L to load a world
 - ctrl+S to save the world
+
 
 # Building
 Ensure you have meson, ninja and cmake installed, then run
